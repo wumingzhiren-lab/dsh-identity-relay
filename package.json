@@ -1,0 +1,39 @@
+{
+  "name": "dsh-identity-relay",
+  "version": "0.1.0",
+  "description": "人格接力：把人格卡、交接书和长期记忆放在磁盘上，新会话自动读档，上下文快满时提醒写交接——换会话、清上下文、重启之后，她还是她。",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "lib/store.mjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "runtime": "host",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "persona",
+    "identity",
+    "memory",
+    "handover",
+    "qq-bot",
+    "context",
+    "continuity"
+  ]
+}

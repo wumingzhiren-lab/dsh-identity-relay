@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Identity Relay",
+    "description": "Keeps the persona card, handover book, and long-term memory on disk. Every new session auto-loads them, and a pressure warning reminds the agent to write a handover before the context fills — the character survives context clears, compactions, and restarts."
+  }
+}

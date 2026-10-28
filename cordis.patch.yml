@@ -1,0 +1,12 @@
+# dsh-identity-relay bundle patch layer
+# 安装方式：dsh 插件管理器安装本目录，或 dsh plugin add <本目录绝对路径>
+- insert:
+    - id: identity-relay
+      name: 'dsh-identity-relay'
+      # 常用可选项（都有默认值，可整段省略）：
+      # config:
+      #   memoryDir: 'D:\qq-bot-memory'   # 记忆库目录，默认 ~/.dsh/identity-memory
+      #   contextWindow: 65536            # 容量预警窗口（tokens）
+      #   warnRatio: 0.85                 # 占用达到该比例时提醒写交接书
+      #   injectOnSubagents: true         # 是否也给子代理注入人格
+      config: {}
