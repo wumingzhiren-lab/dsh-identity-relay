@@ -27,11 +27,11 @@
 ### 方式一：GitHub 直装（推荐）
 
 ```
-dsh plugin add github:<你的GitHub用户名>/dsh-identity-relay#main
+dsh plugin add github:wumingzhiren-lab/dsh-identity-relay#main
 ```
 
-或 DSH 插件管理器 → 市场/安装 → 填 `github:<你的GitHub用户名>/dsh-identity-relay`。
-装好后把仓库链接发给朋友，或者让他们在插件市场里搜「人格接力」。
+或 DSH 插件管理器 → 市场/安装 → 填 `github:wumingzhiren-lab/dsh-identity-relay`。
+装好后把仓库链接发给朋友：https://github.com/wumingzhiren-lab/dsh-identity-relay
 
 ### 方式二：本地目录安装
 

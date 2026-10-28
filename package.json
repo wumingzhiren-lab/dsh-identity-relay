@@ -24,6 +24,14 @@
     }
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wumingzhiren-lab/dsh-identity-relay.git"
+  },
+  "homepage": "https://github.com/wumingzhiren-lab/dsh-identity-relay",
+  "bugs": {
+    "url": "https://github.com/wumingzhiren-lab/dsh-identity-relay/issues"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",
