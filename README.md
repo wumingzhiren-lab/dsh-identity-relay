@@ -64,14 +64,23 @@ dsh plugin add <本目录绝对路径>
 | `maxFacts` | `2000` | facts.jsonl 最多保留条数 |
 | `recallLimit` | `20` | 读档注入的最近记忆条数 |
 
-## 六个工具（bot 自己会用）
+## 七个工具（bot 自己会用）
 
 - `relay_load` — 重读人格卡 + 交接书 + 最近记忆（失忆自救）
-- `relay_remember` — 记一条长期记忆（身份、偏好、承诺、教训）
-- `relay_recall` — 按关键词回忆
+- `relay_remember` — 记一条长期记忆（身份、偏好、承诺、教训）。带 `source`（owner/self/evidence/tool/inferred，默认 inferred 垫底）；带 `subject` 键则同键新压旧，旧记忆自动盖章作废
+- `relay_recall` — 按关键词回忆（默认只出 active；`includeSuperseded: true` 翻案看历史）
+- `relay_retract` — 把一条记忆盖章作废：按内容片段定位，标 `superseded` 并记原因。**作废不删行**，历史保留
 - `relay_handover` — 读/写交接书
 - `relay_persona` — 读/更新人格卡
-- `relay_status` — 记忆库状态 + 当前上下文压力
+- `relay_status` — 记忆库状态（active/已作废计数）+ 历史备份数 + 当前上下文压力
+
+### 记忆的户口与作废（v0.2）
+
+每条记忆带**来源**（谁说的、怎么来的）和**状态**（active / superseded）：
+
+- 来源五档：`owner` 主人说的 > `self` 自己说过/答应的 > `evidence` 有据观察 > `tool` 工具台账 > `inferred` 推断垫底；老数据一律 `unknown`，不猜。
+- **作废 = 盖章，不删行**（Katsuno-Mendelzon 最小变更：只作废该作废的；Darwiche-Pearl：使用只看当前态，历史留档）。检索默认只出 active，被作废的要用 `includeSuperseded` 才能看见。
+- 同键（`subject`）新记忆自动取代旧记忆：旧条标 `superseded`、`supersededBy` 指向新条——这是规则，不是模型猜。
 
 ## 给已上线 bot 的迁移三步（趁上下文还没满）
 

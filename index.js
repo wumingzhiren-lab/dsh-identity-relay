@@ -26,6 +26,7 @@ import {
   readFacts,
   recallFacts,
   appendFact,
+  retractFact,
   writeStoreFile,
   storeStats,
   storeStamps,
@@ -261,7 +262,7 @@ export function apply(ctx, config = {}) {
           const s = stats[f]
           parts.push(s ? `- ${f}: ${s.bytes} bytes，更新于 ${s.mtime}` : `- ${f}: （缺失）`)
         }
-        parts.push(`- 记忆条数：${stats.factCount}${stats.latestFactAt ? `，最新一条 ${stats.latestFactAt}` : ''}`)
+        parts.push(`- 记忆条数：${stats.factCount}（active ${stats.activeCount}，已作废 ${stats.supersededCount}）${stats.latestFactAt ? `，最新一条 ${stats.latestFactAt}` : ''}`)
         const hp = await storeHistoryCount(memoryDir, PERSONA_FILE)
         const hh = await storeHistoryCount(memoryDir, HANDOVER_FILE)
         if (hp > 0 || hh > 0) parts.push(`- 历史备份：人格卡 ${hp} 份，交接书 ${hh} 份（history/ 目录，写覆盖时自动留档，各保留最近 10 份）`)
@@ -323,45 +324,74 @@ export function apply(ctx, config = {}) {
 
   registerTool({
     name: 'relay_remember',
-    description: '把一件事写进长期记忆（facts.jsonl，存在磁盘上，不随上下文消失）。用于记住：身份信息、主人的偏好、答应过的事、重要事实、学到的教训。重复内容会自动去重。',
+    description: '把一件事写进长期记忆（facts.jsonl，存在磁盘上，不随上下文消失）。用于记住：身份信息、主人的偏好、答应过的事、重要事实、学到的教训。重复内容自动去重；给了 subject 就同键新压旧（同键的旧 active 记忆自动盖章作废，不删行）。source 必须如实标：主人说的=owner，自己说过/答应过的=self，有据可查的观察=evidence，工具登记的账=tool，自己推断的=inferred。拿不准就标 inferred（垫底）。',
     parameters: {
       type: 'object',
       properties: {
         content: { type: 'string', description: '要记住的内容，一行一段，尽量具体（谁、什么事、什么时候）。' },
+        source: { type: 'string', enum: ['owner', 'self', 'evidence', 'tool', 'inferred'], description: '来源。不填默认 inferred。' },
+        subject: { type: 'string', description: '可选键（同一件事的固定标识，如作品名、办件号）。给了就同键新压旧。' },
       },
       required: ['content'],
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => queueWrite(async () => {
-      const r = await appendFact(memoryDir, args?.content, { maxFacts })
+      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject })
       if (r.error) return r.error
       if (r.duplicated) return `这条已经记过了，没重复写：${r.entry.content}`
       await syncStamps()
       const stats = await storeStats(memoryDir).catch(() => null)
-      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
+      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n来源：${r.entry.source}${r.entry.subject ? '，键：' + r.entry.subject : ''}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
     }),
   })
 
   registerTool({
     name: 'relay_recall',
-    description: '按关键词搜索长期记忆（facts.jsonl），最新在前。空查询返回最近几条。想不起「我之前答应过什么/主人喜欢什么」时用它。',
+    description: '按关键词搜索长期记忆（facts.jsonl），最新在前。空查询返回最近几条。默认只出 active（作废的不占位）；想翻案看历史，加 includeSuperseded: true。想不起「我之前答应过什么/主人喜欢什么」时用它。',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: '检索词；留空 = 最近几条记忆。' },
         limit: { type: 'integer', description: '返回条数，默认 10。' },
+        includeSuperseded: { type: 'boolean', description: '是否把已作废的记忆也带出来（翻案用），默认 false。' },
       },
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => {
       const limit = Math.round(pickNumber(args?.limit, 10, 1, 100))
-      const facts = await recallFacts(memoryDir, args?.query, { limit })
-      if (facts.length === 0) return `没有找到相关记忆（query: ${String(args?.query ?? '') || '（空，最近记忆）'}）。`
-      const lines = facts.map((f) => `- [${f.time || '?'}] ${f.content}`)
+      const all = args?.includeSuperseded === true
+      const facts = await recallFacts(memoryDir, args?.query, { limit, all })
+      if (facts.length === 0) return `没有找到相关记忆（query: ${String(args?.query ?? '') || '（空，最近记忆）'}${all ? '' : '；active 里没有'}）。`
+      const lines = facts.map((f) => {
+        const head = f.status === 'superseded' ? '✗ 已作废' : `[${f.source}]`
+        return `- ${head} [${f.time || '?'}] ${f.content}`
+      })
       return `找到 ${facts.length} 条：\n${lines.join('\n')}`
     },
+  })
+
+  registerTool({
+    name: 'relay_retract',
+    description: '把一条记忆盖章作废（不删行，历史保留）。按 content 片段从后往前匹配最近一条 active 记忆，标 superseded 并写原因。用于：记错了、过期了、被新记忆取代。作废不等于删除，想翻案用 relay_recall 带 includeSuperseded 找回，或直接再记一条新的。',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: { type: 'string', description: '要作废的那条记忆的内容片段（用它定位，取最近一条命中）。' },
+        note: { type: 'string', description: '作废原因（必写：记错了？过期了？被谁取代？）。' },
+      },
+      required: ['content'],
+    },
+    output: TEXT_OUTPUT,
+    isConcurrencySafe: () => true,
+    execute: async (args) => queueWrite(async () => {
+      const r = await retractFact(memoryDir, args?.content, { note: args?.note })
+      if (r.error) return r.error
+      if (!r.found) return `没找到可作废的 active 记忆（片段「${String(args?.content ?? '').slice(0, 60)}」没命中，或它已经是作废状态）。`
+      await syncStamps()
+      return `已作废（盖章，行还在）：${r.entry.content.slice(0, 160)}\n原因：${r.entry.retractNote}`
+    }),
   })
 
   registerTool({
