@@ -1,6 +1,6 @@
 {
   "name": "dsh-identity-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "人格接力：把人格卡、交接书和长期记忆放在磁盘上，新会话自动读档，上下文快满时提醒写交接——换会话、清上下文、重启之后，她还是她。",
   "type": "module",
   "exports": {
@@ -16,6 +16,7 @@
     "icon.svg",
     "README.md",
     "TUTORIAL.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "dsh": {
