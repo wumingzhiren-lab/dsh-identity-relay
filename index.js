@@ -29,6 +29,7 @@ import {
   writeStoreFile,
   storeStats,
   storeStamps,
+  storeHistoryCount,
   PERSONA_FILE,
   HANDOVER_FILE,
 } from './lib/store.mjs'
@@ -261,6 +262,9 @@ export function apply(ctx, config = {}) {
           parts.push(s ? `- ${f}: ${s.bytes} bytes，更新于 ${s.mtime}` : `- ${f}: （缺失）`)
         }
         parts.push(`- 记忆条数：${stats.factCount}${stats.latestFactAt ? `，最新一条 ${stats.latestFactAt}` : ''}`)
+        const hp = await storeHistoryCount(memoryDir, PERSONA_FILE)
+        const hh = await storeHistoryCount(memoryDir, HANDOVER_FILE)
+        if (hp > 0 || hh > 0) parts.push(`- 历史备份：人格卡 ${hp} 份，交接书 ${hh} 份（history/ 目录，写覆盖时自动留档，各保留最近 10 份）`)
       } catch (e) {
         parts.push('记忆库读取失败：' + String(e?.message ?? e))
       }

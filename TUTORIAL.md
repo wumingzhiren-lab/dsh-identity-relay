@@ -72,8 +72,8 @@
 | `relay_load` | 重读人格卡 + 交接书 + 最近记忆（失忆自救） |
 | `relay_remember` | 记一条长期记忆（身份、偏好、承诺、教训） |
 | `relay_recall` | 按关键词回忆 |
-| `relay_handover` | 读/写交接书 |
-| `relay_persona` | 读/更新人格卡 |
+| `relay_handover` | 读/写交接书（覆盖前旧版自动留进 `history/`，保留最近 10 份） |
+| `relay_persona` | 读/更新人格卡（同样留历史） |
 | `relay_status` | 记忆库状态 + 当前上下文压力 |
 
 设计要点：零依赖（只用 node 内置模块）、纯文本文件（任何工具都能读写）、
