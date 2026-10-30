@@ -6,7 +6,8 @@
       # 常用可选项（都有默认值，可整段省略）：
       # config:
       #   memoryDir: 'D:\qq-bot-memory'   # 记忆库目录，默认 ~/.dsh/identity-memory
-      #   contextWindow: 65536            # 容量预警窗口（tokens）
-      #   warnRatio: 0.85                 # 占用达到该比例时提醒写交接书
+      #   contextWindow: 65536            # 取不到模型真实窗口时的兜底值（tokens）
+      #   warnRatio: 0.7                  # 占用达到该比例时提醒写交接书
+      #   reserveTokens: 40000            # 剩余不足这么多 tokens 也提醒（大窗口防空转）
       #   injectOnSubagents: true         # 是否也给子代理注入人格
       config: {}

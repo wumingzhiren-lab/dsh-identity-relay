@@ -28,6 +28,7 @@ import {
   appendFact,
   writeStoreFile,
   storeStats,
+  storeStamps,
   PERSONA_FILE,
   HANDOVER_FILE,
 } from './lib/store.mjs'
@@ -54,7 +55,13 @@ const DEFAULTS = {
   /** 估算的上下文窗口大小（tokens），用于容量预警。 */
   contextWindow: 65536,
   /** 占用达到该比例（0.5~0.99）时预警。 */
-  warnRatio: 0.85,
+  warnRatio: 0.7,
+  /**
+   * 窗口剩余 token 低于该值也预警 —— 与比例无关的第二道保险。
+   * 大窗口模型（如 1M）下 0.85 的比例线要攒到 89 万 token，
+   * 宿主往往早就压缩/清理过一轮了，比例线永远等不到。
+   */
+  reserveTokens: 40000,
   /** 同一会话两次预警的最小间隔（分钟）。 */
   nudgeMinutes: 10,
   /** facts.jsonl 最多保留条数。 */
@@ -168,6 +175,7 @@ export function apply(ctx, config = {}) {
   if (cfg.enabled === false) return
   const memoryDir = resolveMemoryDir(cfg)
   const warnRatio = pickNumber(cfg.warnRatio, DEFAULTS.warnRatio, 0.5, 0.99)
+  const reserveTokens = Math.round(pickNumber(cfg.reserveTokens, DEFAULTS.reserveTokens, 1000, 1e7))
   const contextWindow = pickNumber(cfg.contextWindow, DEFAULTS.contextWindow, 4096, 1e9)
   const nudgeMs = pickNumber(cfg.nudgeMinutes, DEFAULTS.nudgeMinutes, 1, 1440) * 60000
   const maxFacts = Math.round(pickNumber(cfg.maxFacts, DEFAULTS.maxFacts, 100, 100000))
@@ -265,10 +273,12 @@ export function apply(ctx, config = {}) {
           const used = m?.totalTokens ?? 0
           const window = effectiveWindow(session) ?? contextWindow
           const ratio = window > 0 ? used / window : 0
-          parts.push(`上下文压力：约 ${used} tokens / 窗口 ${window}（${(ratio * 100).toFixed(1)}%）${ratio >= warnRatio ? ' —— 已过预警线，先 relay_handover 写交接！' : ''}`)
+          const remaining = window > 0 ? window - used : 0
+          const over = ratio >= warnRatio || (window > 0 && remaining <= reserveTokens)
+          parts.push(`上下文压力：约 ${used} tokens / 窗口 ${window}（${(ratio * 100).toFixed(1)}%，剩余约 ${remaining}）${over ? ' —— 已过预警线，先 relay_handover 写交接！' : ''}`)
         }
       } catch { /* 压力估算失败不报错 */ }
-      parts.push(`配置：预警线 ${(warnRatio * 100).toFixed(0)}%，每次读档注入最近 ${recallLimit} 条记忆。`)
+      parts.push(`配置：预警线 ${(warnRatio * 100).toFixed(0)}% 或剩余不足 ${reserveTokens} tokens（任一命中），每次读档注入最近 ${recallLimit} 条记忆。`)
       return parts.join('\n')
     },
   })
@@ -323,6 +333,7 @@ export function apply(ctx, config = {}) {
       const r = await appendFact(memoryDir, args?.content, { maxFacts })
       if (r.error) return r.error
       if (r.duplicated) return `这条已经记过了，没重复写：${r.entry.content}`
+      await syncStamps()
       const stats = await storeStats(memoryDir).catch(() => null)
       return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
     }),
@@ -365,6 +376,7 @@ export function apply(ctx, config = {}) {
       const action = args?.action === 'read' ? 'read' : (typeof args?.content === 'string' ? 'write' : 'read')
       if (action === 'write') return queueWrite(async () => {
         await writeStoreFile(memoryDir, HANDOVER_FILE, args.content)
+        await syncStamps()
         return `交接书已写入 ${join(memoryDir, HANDOVER_FILE)}。下一世开工自动读到它，无缝接上。`
       })
       const text = await readTextSafe(join(memoryDir, HANDOVER_FILE))
@@ -388,6 +400,7 @@ export function apply(ctx, config = {}) {
       const action = args?.action === 'read' ? 'read' : (typeof args?.content === 'string' ? 'update' : 'read')
       if (action === 'update') return queueWrite(async () => {
         await writeStoreFile(memoryDir, PERSONA_FILE, args.content)
+        await syncStamps()
         return `人格卡已更新：${join(memoryDir, PERSONA_FILE)}\n提醒：只保留/强化核心身份，别把「她」写成别人。`
       })
       const text = await readTextSafe(join(memoryDir, PERSONA_FILE))
@@ -397,6 +410,20 @@ export function apply(ctx, config = {}) {
 
   // 4) 会话开工自动读档（agent/created 是 serial 事件：监听器抛错会让 agent 创建失败，务必全包住）。
   const nudgeTimes = new Map() // agentId -> 上次预警时间
+
+  // 跨会话档案指纹：别的会话写了 persona/handover/facts，本会话要在下一步就知道，
+  // 不能拿开局时的旧记忆干活。自己写档时顺手推平，避免自己吵自己。
+  let knownStamps = null
+  let stampsCheckedAt = 0
+  let lastArchiveNudgeAt = 0
+  /** 重新取指纹并把基线推平（自己写完档时调用）。 */
+  const syncStamps = async () => {
+    const s = await storeStamps(memoryDir).catch(() => null)
+    if (s) knownStamps = s
+    return s
+  }
+  // 开工先记一次初始指纹；取不到就等下个 pre-step 补。
+  storeStamps(memoryDir).then((s) => { knownStamps = s }, () => { /* 静默 */ })
   ctx.on('agent/created', async (payload) => {
     try {
       const { agent, source } = payload ?? {}
@@ -419,25 +446,53 @@ export function apply(ctx, config = {}) {
     }
   })
 
-  // 5) 上下文容量预警（agent/pre-step 瀑布：只追加提示，绝不改动/拒绝决策本身）。
+  // 5) 跨会话档案更新 + 上下文容量预警（agent/pre-step 瀑布：只追加提示，绝不改动/拒绝决策本身）。
   ctx.on('agent/pre-step', async (payload, next) => {
     const decision = await next()
+    if (decision?.kind !== 'enter') return decision
+
+    // 5a) 别的会话写了档没有？每 2 秒最多查一次，只 stat 不读内容。
     try {
-      if (decision?.kind !== 'enter') return decision
+      if (Date.now() - stampsCheckedAt >= 2000) {
+        stampsCheckedAt = Date.now()
+        const stamps = await storeStamps(memoryDir)
+        if (knownStamps === null) {
+          knownStamps = stamps
+        } else {
+          const changed = ['persona', 'handover', 'facts'].filter((k) => stamps[k] !== knownStamps[k])
+          // 一分钟内最多吼一次；被节流时不推平基线，攒着下次一起说（也不打断容量预警）。
+          if (changed.length > 0 && Date.now() - lastArchiveNudgeAt >= 60000) {
+            lastArchiveNudgeAt = Date.now()
+            knownStamps = stamps
+            const label = { persona: PERSONA_FILE, handover: HANDOVER_FILE, facts: 'facts.jsonl' }
+            const text = [
+              '[人格接力 · 档案更新] 有人刚写了 ' + changed.map((k) => label[k]).join('、') + '（不是本会话的手笔）。',
+              '别的「我」可能改了交接书或记忆：先 relay_load 重读一遍，再接着干，别拿开局时的旧记忆办事。',
+            ].join('\n')
+            return { ...decision, messages: [...decision.messages, makeMessage(text)] }
+          }
+        }
+      }
+    } catch { /* 检测失败不打扰干活 */ }
+
+    try {
       const meter = ctx.get?.('tokenMeter')
       const agent = payload?.agent
       if (!meter || !agent || !agent.session || typeof meter.measure !== 'function') return decision
       const m = meter.measure(agent.session)
       const used = m?.totalTokens ?? 0
       const window = effectiveWindow(agent.session, contextWindow)
-      if (window <= 0 || used / window < warnRatio) return decision
+      if (window <= 0) return decision
+      // 两道保险任一命中就预警：比例线（常规）+ 剩余绝对值（大窗口防空转）。
+      const remaining = window - used
+      if (used / window < warnRatio && remaining > reserveTokens) return decision
       const id = agent.id
       const last = nudgeTimes.get(id) ?? 0
       if (Date.now() - last < nudgeMs) return decision
       nudgeTimes.set(id, Date.now())
       const ratio = (used / window * 100).toFixed(1)
       const text = [
-        '[人格接力 · 容量预警] 当前上下文已用约 ' + ratio + '%（≈' + used + ' tokens / 窗口 ' + window + '）。',
+        '[人格接力 · 容量预警] 当前上下文已用约 ' + ratio + '%（≈' + used + ' tokens / 窗口 ' + window + '，剩余约 ' + remaining + '）。',
         '继续干活之前，先调用 relay_handover 把「我是谁、正在做什么、接下来做什么、答应过什么」写进交接书。',
         '这样就算上下文被清空或压缩，下一世的我也能照常接上——不会变成别人。',
       ].join('\n')

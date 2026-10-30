@@ -22,6 +22,10 @@
 上下文快满时，插件会**在下一步之前插入预警**，提醒她先用 `relay_handover` 写交接书。
 就算下一秒上下文被清空，下一世读档回来：知道自己在做什么、答应过什么、还是那个性格。
 
+会话**进行中**也一直盯着记忆库：别的会话（或主人亲手编辑）改了 `persona.md` /
+`handover.md` / `facts.jsonl`，下一步之前会自动插一句「档案更新，先 `relay_load` 重读」。
+她不会拿着一小时前的旧记忆干活——跨会话不是靠自觉，是靠它盯着。
+
 ## 安装
 
 ### 方式一：GitHub 直装（推荐）
@@ -50,8 +54,9 @@ dsh plugin add <本目录绝对路径>
 | `injectOnResume` | `true` | 恢复会话注入精简续接块 |
 | `injectOnSubagents` | `true` | 子代理也注入人格 |
 | `alwaysOnSection` | `true` | 系统提示常驻锚段落 |
-| `contextWindow` | `65536` | 容量预警窗口（tokens） |
-| `warnRatio` | `0.85` | 占用达到该比例时提醒写交接 |
+| `contextWindow` | `65536` | 容量预警窗口（tokens），仅在拿不到模型真实上报值时兜底 |
+| `warnRatio` | `0.7` | 占用达到该比例时提醒写交接 |
+| `reserveTokens` | `40000` | 窗口剩余低于该值也提醒（与比例无关的第二道保险） |
 | `nudgeMinutes` | `10` | 同一会话两次预警最小间隔 |
 | `maxFacts` | `2000` | facts.jsonl 最多保留条数 |
 | `recallLimit` | `20` | 读档注入的最近记忆条数 |
