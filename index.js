@@ -138,7 +138,7 @@ async function buildInjection(source, cfg, memoryDir) {
   const facts = await readFacts(memoryDir, { limit: cfg.recallLimit })
 
   const factLines = facts.length > 0
-    ? facts.map((f) => `- [${f.time || '?'}] ${f.content}`).join('\n')
+    ? facts.map((f) => `- [${f.source || 'unknown'}] [${f.time || '?'}] ${f.content}`).join('\n')
     : '（还没有长期记忆。重要的身份、答应过的事，用 relay_remember 记下来。）'
 
   if (source === 'resume') {
@@ -307,7 +307,7 @@ export function apply(ctx, config = {}) {
         readFacts(memoryDir, { limit }),
       ])
       const factLines = facts.length > 0
-        ? facts.map((f) => `- [${f.time || '?'}] ${f.content}`).join('\n')
+        ? facts.map((f) => `- [${f.source || 'unknown'}] [${f.time || '?'}] ${f.content}`).join('\n')
         : '（暂无记忆）'
       return [
         '[人格接力 · 读档]',
