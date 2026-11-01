@@ -23,6 +23,8 @@
 dsh plugin add github:wumingzhiren-lab/dsh-identity-relay#main
 ```
 
+> 想看它是怎么被讲出来的：[B 站《记忆的户口》](https://www.bilibili.com/video/BV1AoxW6kEx2/)（2 分钟，讲清楚「为什么记忆要上户口」）
+
 ## 为什么不会消失
 
 | 磁盘文件 | 作用 | 对应「小鲸工作法」 |
