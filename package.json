@@ -14,6 +14,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "docs/",
     "README.md",
     "TUTORIAL.md",
     "CHANGELOG.md",

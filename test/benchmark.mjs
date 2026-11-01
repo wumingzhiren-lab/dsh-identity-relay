@@ -1,4 +1,4 @@
-// benchmark.mjs — identity-relay 基准场景集第一版（50 题，全临时目录，不碰真实记忆库）
+﻿// benchmark.mjs — identity-relay 基准场景集第一版（48 题，全临时目录，不碰真实记忆库）
 // 运行：node test/benchmark.mjs（从插件根目录）
 import { promises as fs } from 'node:fs'
 import { appendFact, readFacts, recallFacts, retractFact, parseFacts, looksLikeSecret } from '../lib/store.mjs'

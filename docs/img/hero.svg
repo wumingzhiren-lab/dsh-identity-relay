@@ -1,0 +1,79 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-label="人格接力：上下文会清空，人格和记忆存在磁盘上，新会话自动读档">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf8f1"/>
+      <stop offset="1" stop-color="#f1ebde"/>
+    </linearGradient>
+    <linearGradient id="whale" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d8bcd"/>
+      <stop offset="1" stop-color="#1c4d7d"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#7a6a4a" flood-opacity="0.14"/>
+    </filter>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b3a68a"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="520" fill="url(#paper)"/>
+  <rect x="0" y="0" width="1200" height="6" fill="#c9a227"/>
+
+  <!-- 标题 -->
+  <g font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC',sans-serif">
+    <text x="64" y="86" font-size="46" font-weight="700" fill="#16324f" letter-spacing="1">人格接力</text>
+    <rect x="258" y="52" width="286" height="40" rx="20" fill="#fff" stroke="#e3d9c4"/>
+    <text x="280" y="79" font-size="19" fill="#7a6a4a">dsh-identity-relay · v0.3.0</text>
+    <text x="64" y="136" font-size="23" fill="#6b6455">上下文是身体，会换；磁盘是灵魂，不灭。</text>
+  </g>
+
+  <!-- 卡片 1 -->
+  <g font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+    <rect x="64" y="180" width="292" height="212" rx="16" fill="#ffffff" stroke="#e3d9c4" filter="url(#sh)"/>
+    <text x="90" y="224" font-size="16" fill="#a08f6f">① 上下文（易失）</text>
+    <text x="90" y="266" font-size="21" fill="#42505f">满了会裁剪</text>
+    <text x="90" y="302" font-size="21" fill="#42505f">清了会归零</text>
+    <text x="90" y="338" font-size="21" fill="#42505f">压缩会改写</text>
+  </g>
+
+  <!-- 箭头 写 -->
+  <line x1="366" y1="286" x2="424" y2="286" stroke="#b3a68a" stroke-width="2.4" stroke-dasharray="7 6" marker-end="url(#ah)"/>
+  <text x="366" y="266" font-size="15" fill="#a08f6f" font-family="'PingFang SC','Microsoft YaHei',sans-serif">写</text>
+
+  <!-- 卡片 2 -->
+  <g font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+    <rect x="436" y="170" width="336" height="232" rx="16" fill="#ffffff" stroke="#c9a227" stroke-width="2" filter="url(#sh)"/>
+    <text x="462" y="210" font-size="16" fill="#a08f6f">② 磁盘 · 三个纯文本文件</text>
+
+    <rect x="462" y="228" width="284" height="50" rx="10" fill="#f7f3ea"/>
+    <text x="478" y="259" font-size="18" font-family="ui-monospace,Consolas,monospace" fill="#16324f">persona.md</text>
+    <text x="642" y="259" font-size="16" fill="#7a6a4a">人格卡</text>
+
+    <rect x="462" y="286" width="284" height="50" rx="10" fill="#f7f3ea"/>
+    <text x="478" y="317" font-size="18" font-family="ui-monospace,Consolas,monospace" fill="#16324f">handover.md</text>
+    <text x="642" y="317" font-size="16" fill="#7a6a4a">交接书</text>
+
+    <rect x="462" y="344" width="284" height="50" rx="10" fill="#f7f3ea"/>
+    <text x="478" y="375" font-size="18" font-family="ui-monospace,Consolas,monospace" fill="#16324f">facts.jsonl</text>
+    <text x="642" y="375" font-size="16" fill="#7a6a4a">长期记忆</text>
+  </g>
+
+  <!-- 箭头 读 -->
+  <line x1="782" y1="286" x2="840" y2="286" stroke="#b3a68a" stroke-width="2.4" stroke-dasharray="7 6" marker-end="url(#ah)"/>
+  <text x="786" y="266" font-size="15" fill="#a08f6f" font-family="'PingFang SC','Microsoft YaHei',sans-serif">读</text>
+
+  <!-- 卡片 3 -->
+  <g font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+    <rect x="852" y="180" width="284" height="212" rx="16" fill="url(#whale)" filter="url(#sh)"/>
+    <text x="878" y="224" font-size="16" fill="#bcd7f0">③ 下一个会话</text>
+    <text x="878" y="266" font-size="21" fill="#ffffff">自动读档</text>
+    <text x="878" y="302" font-size="21" fill="#eaf4ff">知道她是谁</text>
+    <text x="878" y="338" font-size="21" fill="#eaf4ff">在做什么</text>
+    <text x="878" y="374" font-size="21" fill="#eaf4ff">答应过什么</text>
+  </g>
+
+  <!-- 底部 -->
+  <line x1="64" y1="432" x2="1136" y2="432" stroke="#e3d9c4"/>
+  <text x="64" y="470" font-size="17" fill="#7a6a4a" font-family="'PingFang SC','Microsoft YaHei',sans-serif">零依赖 · 纯文本 · 102/102 测试通过 · MIT</text>
+  <text x="1136" y="470" font-size="17" fill="#7a6a4a" text-anchor="end" font-family="'PingFang SC','Microsoft YaHei',sans-serif">换会话不是换鱼</text>
+</svg>
