@@ -262,7 +262,7 @@ export function apply(ctx, config = {}) {
           const s = stats[f]
           parts.push(s ? `- ${f}: ${s.bytes} bytes，更新于 ${s.mtime}` : `- ${f}: （缺失）`)
         }
-        parts.push(`- 记忆条数：${stats.factCount}（active ${stats.activeCount}，已作废 ${stats.supersededCount}）${stats.latestFactAt ? `，最新一条 ${stats.latestFactAt}` : ''}`)
+        parts.push(`- 记忆条数：${stats.factCount}（active ${stats.activeCount}，已作废 ${stats.supersededCount}，已归档 ${stats.archivedCount ?? 0}）${stats.latestFactAt ? `，最新一条 ${stats.latestFactAt}` : ''}`)
         const hp = await storeHistoryCount(memoryDir, PERSONA_FILE)
         const hh = await storeHistoryCount(memoryDir, HANDOVER_FILE)
         if (hp > 0 || hh > 0) parts.push(`- 历史备份：人格卡 ${hp} 份，交接书 ${hh} 份（history/ 目录，写覆盖时自动留档，各保留最近 10 份）`)
@@ -324,49 +324,53 @@ export function apply(ctx, config = {}) {
 
   registerTool({
     name: 'relay_remember',
-    description: '把一件事写进长期记忆（facts.jsonl，存在磁盘上，不随上下文消失）。用于记住：身份信息、主人的偏好、答应过的事、重要事实、学到的教训。重复内容自动去重；给了 subject 就同键新压旧（同键的旧 active 记忆自动盖章作废，不删行）。source 必须如实标：主人说的=owner，自己说过/答应过的=self，有据可查的观察=evidence，工具登记的账=tool，自己推断的=inferred。拿不准就标 inferred（垫底）。',
+    description: '把一件事写进长期记忆（facts.jsonl，存在磁盘上，不随上下文消失）。用于记住：身份信息、主人的偏好、答应过的事、重要事实、学到的教训。重复内容自动去重；给了 subject 就同键新压旧（同键的旧 active 记忆自动盖章作废，不删行）；给了 related 就把这条挂到已有记忆上（填记忆 id 或内容片段），之后回忆命中时会带出关联。source 必须如实标：主人说的=owner，自己说过/答应过的=self，有据可查的观察=evidence，工具登记的账=tool，自己推断的=inferred。拿不准就标 inferred（垫底）。',
     parameters: {
       type: 'object',
       properties: {
         content: { type: 'string', description: '要记住的内容，一行一段，尽量具体（谁、什么事、什么时候）。' },
         source: { type: 'string', enum: ['owner', 'self', 'evidence', 'tool', 'inferred'], description: '来源。不填默认 inferred。' },
         subject: { type: 'string', description: '可选键（同一件事的固定标识，如作品名、办件号）。给了就同键新压旧。' },
+        related: { type: 'array', items: { type: 'string' }, description: '可选：关联到已有记忆。每项填记忆 id 或一段内容片段（会解析成最近命中的那条 active 记忆），最多 5 个。之后 relay_recall 命中这条时会顺手带出关联记忆。' },
       },
       required: ['content'],
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => queueWrite(async () => {
-      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject })
+      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related })
       if (r.error) return r.error
       if (r.duplicated) return `这条已经记过了，没重复写：${r.entry.content}`
       await syncStamps()
       const stats = await storeStats(memoryDir).catch(() => null)
-      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n来源：${r.entry.source}${r.entry.subject ? '，键：' + r.entry.subject : ''}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
+      const relNote = r.entry.related?.length ? `\n关联：${r.entry.related.length} 条` : ''
+      const missNote = r.unresolved?.length ? `\n没解析到的关联（跳过）：${r.unresolved.join('、')}` : ''
+      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n来源：${r.entry.source}${r.entry.subject ? '，键：' + r.entry.subject : ''}${relNote}${missNote}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
     }),
   })
 
   registerTool({
     name: 'relay_recall',
-    description: '按关键词搜索长期记忆（facts.jsonl），最新在前。空查询返回最近几条。默认只出 active（作废的不占位）；想翻案看历史，加 includeSuperseded: true。想不起「我之前答应过什么/主人喜欢什么」时用它。',
+    description: '按关键词搜索长期记忆（facts.jsonl）。排序先看来源可信度（主人原话/自己答应过的事优先），再看时间新→旧；命中条目的关联记忆会顺手带出（最多 3 条）。检索条数写死上限 20，不越捞越多。空查询返回最近几条。默认只出 active（作废/归档的不占位）；想翻案看历史，加 includeSuperseded: true。想不起「我之前答应过什么/主人喜欢什么」时用它。',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: '检索词；留空 = 最近几条记忆。' },
-        limit: { type: 'integer', description: '返回条数，默认 10。' },
+        limit: { type: 'integer', description: '返回条数，默认 10，最多 20（硬上限）。' },
         includeSuperseded: { type: 'boolean', description: '是否把已作废的记忆也带出来（翻案用），默认 false。' },
       },
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => {
-      const limit = Math.round(pickNumber(args?.limit, 10, 1, 100))
+      const limit = Math.round(pickNumber(args?.limit, 10, 1, 20))
       const all = args?.includeSuperseded === true
       const facts = await recallFacts(memoryDir, args?.query, { limit, all })
       if (facts.length === 0) return `没有找到相关记忆（query: ${String(args?.query ?? '') || '（空，最近记忆）'}${all ? '' : '；active 里没有'}）。`
       const lines = facts.map((f) => {
-        const head = f.status === 'superseded' ? '✗ 已作废' : `[${f.source}]`
-        return `- ${head} [${f.time || '?'}] ${f.content}`
+        const head = f.status === 'superseded' ? '✗ 已作废' : f.status === 'archived' ? '📦 已归档' : `[${f.source}]`
+        const via = f.via === 'related' ? '（关联）' : ''
+        return `- ${head}${via} [${f.time || '?'}] ${f.content}`
       })
       return `找到 ${facts.length} 条：\n${lines.join('\n')}`
     },

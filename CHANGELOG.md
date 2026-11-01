@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0（2026-11-01）
+
+记忆开始有「关系」，也开始会「退休」。三件事都只碰记忆层，不碰人格卡、不碰情绪。
+
+**新功能**
+
+- 关联记忆：`relay_remember` 新增可选 `related`，每项填记忆 id 或内容片段（解析成最近命中的那条 active）；`relay_recall` 命中时顺手带出关联条（标「关联」，整体最多 3 条）。解析不到的片段会跳过并在结果里回报，不猜。
+- 检索上限写死：`relay_recall` 最多 20 条（原来可传 100），排序改成先看来源可信度（owner/self 优先），再看时间新→旧——截断时先保主人原话。
+- 软归档：记忆状态新增 `archived`。读档、检索都不再带出归档条，行还在，`includeSuperseded: true` 可见。
+- 收工整理脚本：`~/.dsh/identity-memory/tools/consolidate.mjs`（零依赖，不在插件包内）。只归档老于 N 天、`tool/inferred/evidence` 类、无 `subject` 的过程流水；`owner`/`self` 永不归档；写前自动备份，先 dry-run 再 `--apply`。
+
+**质量**
+
+- 测试：smoke 12 + step4 26 + step5 16 + benchmark 48 = 102 项，全绿。
+- 已知边界：整理脚本只认 `tool/inferred/evidence`；`unknown`（0.2 之前的老数据）不动——宁可少归档，不误伤。
+
 ## 0.2.0（2026-10-31）
 
 记忆不再只进不出。这一版给每条记忆上了户口（来源）和生死簿（状态）。
