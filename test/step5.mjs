@@ -62,5 +62,15 @@ const st = await storeStats(DIR)
 ok('storeStats 统计 archived', st.archivedCount === 1)
 ok('storeStats active 不含 archived', st.activeCount === (await parseFacts(DIR)).filter((f) => f.status === 'active').length)
 
+// 5) 跨进程锁：陈旧锁（60s 前崩溃残留）可抢占；写完后锁必须释放
+import { LOCK_FILE } from '../lib/store.mjs'
+const lockPath = `${DIR}/${LOCK_FILE}`
+await fs.writeFile(lockPath, JSON.stringify({ pid: 999999, time: new Date().toISOString() }), 'utf8')
+const old = new Date(Date.now() - 60_000)
+await fs.utimes(lockPath, old, old)
+const staleResult = await appendFact(DIR, '陈旧锁被抢占后的写入', { source: 'tool' })
+ok('陈旧锁可抢占（写成功）', staleResult.appended === true)
+ok('写完后锁已释放', !(await fs.stat(lockPath).catch(() => null)))
+
 console.log(`\n${pass} 通过 / ${fail} 失败`)
 process.exit(fail === 0 ? 0 : 1)
