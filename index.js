@@ -25,6 +25,7 @@ import {
   readTextSafe,
   readFacts,
   recallFacts,
+  pickFactsForInjection,
   appendFact,
   retractFact,
   writeStoreFile,
@@ -70,6 +71,15 @@ const DEFAULTS = {
   maxFacts: 2000,
   /** 读档注入的最近记忆条数。 */
   recallLimit: 20,
+  /**
+   * 读档注入保底名额：这些来源的记忆单独占名额，不至于被最近流水挤掉。
+   * 注入时还没有对话内容，算不了语义相关性，只能先做这一层。
+   */
+  pinSources: ['owner', 'self'],
+  /** 保底名额只在最近 N 条 active 里挑，避免翻出太旧的话。 */
+  pinWindow: 300,
+  /** 保底名额上限；0 = 自动取 recallLimit/3。 */
+  pinMax: 0,
   /** 注入的人格卡最大字符数。 */
   maxInjectChars: 6000,
   /** 注入的交接书最大字符数。 */
@@ -135,7 +145,12 @@ async function buildInjection(source, cfg, memoryDir) {
     readTextSafe(join(memoryDir, PERSONA_FILE)),
     readTextSafe(join(memoryDir, HANDOVER_FILE)),
   ])
-  const facts = await readFacts(memoryDir, { limit: cfg.recallLimit })
+  const facts = await pickFactsForInjection(memoryDir, {
+    limit: cfg.recallLimit,
+    pinSources: cfg.pinSources,
+    pinWindow: cfg.pinWindow,
+    pinMax: cfg.pinMax,
+  })
 
   const factLines = facts.length > 0
     ? facts.map((f) => `- [${f.source || 'unknown'}] [${f.time || '?'}] ${f.content}`).join('\n')
