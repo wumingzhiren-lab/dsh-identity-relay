@@ -1,4 +1,4 @@
-﻿// benchmark.mjs — identity-relay 基准场景集第一版（48 题，全临时目录，不碰真实记忆库）
+// benchmark.mjs — identity-relay 基准场景集第一版（48 题，全临时目录，不碰真实记忆库）
 // 运行：node test/benchmark.mjs（从插件根目录）
 import { promises as fs } from 'node:fs'
 import { appendFact, readFacts, recallFacts, retractFact, parseFacts, looksLikeSecret } from '../lib/store.mjs'
@@ -305,12 +305,22 @@ T('E04', 'CRLF 行尾兼容', async () => {
 
 T('E05', '空文件不炸', async () => { const d = await fresh(); const f = await readFacts(d, { limit: 5 }); return ok('E05', Array.isArray(f) && f.length === 0, `n=${f.length}`) })
 
-T('E06', '10 万字符照写', async () => {
+// E06 原先是「10 万字符照写」——那是把漏洞当正确行为（审计 2026-11-03 指出：
+// 单条无上限会把开机注入块撑到 16 万，maxInjectChars 只管人格卡）。
+// 现在正确行为是：超上限拒绝写入，并给出可读原因。
+T('E06', '超长内容被拒绝（单条上限 4000）', async () => {
   const d = await fresh()
   const big = 'x'.repeat(100000)
   const r = await appendFact(d, big)
   const f = await readJson(d)
-  return ok('E06', r.appended === true && f[0].content.length === 100000, `len=${f[0]?.content.length}`)
+  return ok('E06', r.appended === false && typeof r.error === 'string' && f.length === 0, `appended=${r.appended}, rows=${f.length}`)
+})
+
+T('E06b', '恰好 4000 字符可以写', async () => {
+  const d = await fresh()
+  const exact = 'y'.repeat(4000)
+  const r = await appendFact(d, exact)
+  return ok('E06b', r.appended === true, `appended=${r.appended}`)
 })
 
 T('E07', '1 万字符 subject 正常替换', async () => {

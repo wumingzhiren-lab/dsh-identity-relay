@@ -66,5 +66,18 @@ const stats2 = sourceTrustStats(await (async () => {
 })())
 ok('真库统计里 tool 有判错', stats2.tool && stats2.tool.manualRetract === 1)
 
+// ── 时区混用排序（审计 2026-11-03：localeCompare 把 +08:00 与 Z 判反）──
+// 2026-11-03T10:00:00+08:00 = 02:00Z；2026-11-03T02:30:00Z 更晚。
+// 字符串比较会认为前者更大（判反），数值比较才对。
+const DIRTZ = 'C:/Users/admin/AppData/Local/Temp/relay-step11-tz'
+await fs.rm(DIRTZ, { recursive: true, force: true })
+await fs.mkdir(DIRTZ, { recursive: true })
+await fs.writeFile(DIRTZ + '/facts.jsonl', [
+  JSON.stringify({ id: 'z1', time: '2026-11-03T10:00:00+08:00', content: '测试时区 A', source: 'tool', status: 'active' }),
+  JSON.stringify({ id: 'z2', time: '2026-11-03T02:30:00Z', content: '测试时区 B', source: 'tool', status: 'active' }),
+].join('\n') + '\n', 'utf8')
+const tzr = await recallFacts(DIRTZ, '测试时区')
+ok('时区混用时排序正确（B 更晚，应在前）', tzr[0]?.id === 'z2')
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
