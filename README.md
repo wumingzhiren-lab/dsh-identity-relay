@@ -105,6 +105,7 @@ dsh plugin add <本目录绝对路径>
 | `maxInjectChars` | `6000` | 注入的人格卡最大字符数（超出会截断并提示用 `relay_load` 看全文） |
 | `maxHandoverChars` | `4000` | 注入的交接书最大字符数 |
 | `injectSelect` | `"relevance"` | 读档挑哪些记忆。`"relevance"` = 拿交接书当话题，按「相关 × 新鲜 × 来源」挑 N 条（挑不出话题自动退回 `recent`）；`"recent"` = 最近 N 条 + 保底名额（v0.4 旧行为，想退回去设这个值即可）。0.5 起默认 `"relevance"`：真库比对同样 20 个名额，owner+self 覆盖 15/23 → 19/23 |
+| `maxFactsChars` | `8000` | **记忆段的字符预算**（0.5）。单条上限 4000 字符 × 20 条最坏能到 8 万字符，小窗口直接吃掉半个上下文。超预算按挑选顺序从尾部丢，至少留 1 条，并在块尾写明「另 N 条超出预算，用 relay_recall 捞」；`0` = 不设限 |
 
 ## 八个工具（bot 自己会用）
 
@@ -134,12 +135,13 @@ node test/step11.mjs     # 26 项：来源动态信任（按人工判错率降�
 node test/step12.mjs     # 26 项：检索升级（切词 + 双字组覆盖率，多词「与」匹配，子串回归对照）
 node test/step13.mjs     # 17 项：并发写压测（进程内 20 并发 / 跨进程 2x10 与 3x6，都不丢行）
 node test/step14.mjs     # 16 项：读档按相关性挑记忆（相关×新鲜×来源，保底名额不丢，空话题退回最近）
-node test/step15.mjs     # 12 项：接线层实测（真实 buildInjection 认不认 injectSelect，recent/relevance/resume 三路）
+node test/step15.mjs     # 14 项：接线层实测（真实 buildInjection 认不认 injectSelect，recent/relevance/resume 三路 + 调用点漏传回归）
+node test/step16.mjs     # 17 项：注入体积预算（字符预算截断、至少留 1 条、0=不设限、漏传走默认）
 node test/benchmark.mjs  # 49 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 node test/fuzz.mjs 200   # 随机压力：随机操作序列 + 极端输入，只测不变量（每轮 300+ 断言）
 ```
 
-**365/365 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
+**384/384 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
 
 **fuzz 关注的不变量**：每一行永远合法 JSON、无重复 id、同 subject 同时最多 1 条 active、行数不超硬上限、写入能原样读回、注入行不泄漏伪造的数据边界、指令识别对极端输入不抛异常。
 
