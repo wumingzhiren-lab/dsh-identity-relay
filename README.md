@@ -113,12 +113,12 @@ node test/step6.mjs      # 13 项：读档注入保底名额（主人原话不�
 node test/step7.mjs      # 23 项：记忆矛盾检测（否定差异 / 极性概念组 / 长文本不误报）
 node test/step8.mjs      # 28 项：记忆有效期（validFrom/validTo 一起判、同键补结束时间、老数据不受影响）
 node test/step9.mjs      # 23 项：注入安全（记忆是数据不是指令、伪造边界清洗）+ 增量注入（先进先出）
-node test/step10.mjs     # 19 项：pre-step 提示决策（多个条件同时命中必须全都出，防分支互斥）
+node test/step10.mjs     # 35 项：pre-step 接线（指纹对比 / 行渲染 / 提示文本 / 全链路不丢）
 node test/step11.mjs     # 24 项：来源动态信任（按人工判错率降权，上限一半）+ 记忆年龄标记
 node test/benchmark.mjs  # 48 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 ```
 
-**234/234 通过**（2026-11-03 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
+**250/250 通过**（2026-11-03 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
 
 ## 功能解答（FAQ）
 
