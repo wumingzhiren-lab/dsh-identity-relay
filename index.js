@@ -26,6 +26,7 @@ import {
   readFacts,
   recallFacts,
   pickFactsForInjection,
+  findConflicts,
   appendFact,
   retractFact,
   writeStoreFile,
@@ -411,6 +412,32 @@ export function apply(ctx, config = {}) {
       await syncStamps()
       return `已作废（盖章，行还在）：${r.entry.content.slice(0, 160)}\n原因：${r.entry.retractNote}`
     }),
+  })
+
+  registerTool({
+    name: 'relay_conflicts',
+    description: '列出可能互相矛盾的记忆对（纯规则检测：否定词差异 + 正反义词，不调模型）。**只报告，不自动作废**——规则只能发现可疑，盖哪条由你或主人决定，确认后用 relay_retract 盖章。同 subject 的两条不参与（那是同键替换的地盘，写完已自动盖章）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        scanLimit: { type: 'integer', description: '只比较最近多少条 active 记忆，默认 200。' },
+      },
+    },
+    output: TEXT_OUTPUT,
+    isConcurrencySafe: () => true,
+    execute: async (args) => {
+      const scanLimit = Math.round(pickNumber(args?.scanLimit, 200, 2, 2000))
+      const facts = await readFacts(memoryDir, { limit: 1000 })
+      const pairs = findConflicts(facts, { scanLimit })
+      if (pairs.length === 0) {
+        return `最近 ${scanLimit} 条 active 记忆里，没发现规则可判的矛盾（否定差异/正反义）。\n注意：同义不同词（喜欢/爱）、更细的语义冲突，这套规则检测不了——它只能筛出「明显打架」的。`
+      }
+      const shown = pairs.slice(0, 20).map((p, i) => {
+        const label = p.reason === 'negation' ? '否定差异' : '正反义 ' + p.reason.slice(8)
+        return `${i + 1}. [${label}] 相似度 ${p.similarity}\n   A [${p.a.source || 'unknown'}] ${p.a.time || '?'} ${p.a.content}\n   B [${p.b.source || 'unknown'}] ${p.b.time || '?'} ${p.b.content}`
+      })
+      return `发现 ${pairs.length} 对疑似矛盾（只报告，没动数据）：\n${shown.join('\n')}${pairs.length > 20 ? '\n（只显示前 20 对）' : ''}\n\n确认哪条是错的之后：relay_retract 传内容片段 + 原因，盖章作废。`
+    },
   })
 
   registerTool({

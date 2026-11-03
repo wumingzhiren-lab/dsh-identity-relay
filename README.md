@@ -90,28 +90,31 @@ dsh plugin add <本目录绝对路径>
 | `maxFacts` | `2000` | facts.jsonl 最多保留条数 |
 | `recallLimit` | `20` | 读档注入的最近记忆条数 |
 
-## 七个工具（bot 自己会用）
+## 八个工具（bot 自己会用）
 
 - `relay_load` — 重读人格卡 + 交接书 + 最近记忆（失忆自救）
 - `relay_remember` — 记一条长期记忆（身份、偏好、承诺、教训）。带 `source`（owner/self/evidence/tool/inferred，默认 inferred 垫底）；带 `subject` 键则同键新压旧，旧记忆自动盖章作废；带 `related` 可挂到已有记忆上（填 id 或内容片段，最多 5 个）
 - `relay_recall` — 按关键词回忆。最多 20 条（硬上限），排序先看来源可信度再按时间；命中条目的关联记忆会带出（最多 3 条）；默认只出 active，`includeSuperseded: true` 翻案看历史
 - `relay_retract` — 把一条记忆盖章作废：按内容片段定位，标 `superseded` 并记原因。**作废不删行**，历史保留
+- `relay_conflicts` — 列出**可能互相矛盾**的记忆对（纯规则：否定词差异 + 正反义词，不调模型）。**只报告，不自动作废**——规则只能发现可疑，盖哪条由人和 bot 决定。同 `subject` 的已被同键替换处理，不参与
 - `relay_handover` — 读/写交接书
 - `relay_persona` — 读/更新人格卡
 - `relay_status` — 记忆库状态（active/已作废/已归档计数）+ 历史备份数 + 当前上下文压力
 
 ## 测试
 
-四套测试全在临时目录跑，**不碰真实记忆库**：
+六套测试全在临时目录跑，**不碰真实记忆库**：
 
 ```bash
 node test/smoke.mjs      # 12 项：记忆库层冒烟（建库/追加/去重/检索/统计）
 node test/step4.mjs      # 26 项：来源五档、作废盖章、同键替换、凭据拦截
-node test/step5.mjs      # 16 项：关联记忆、软归档、检索上限与来源优先
+node test/step5.mjs      # 18 项：关联记忆、软归档、检索上限与来源优先、跨进程写锁
+node test/step6.mjs      # 13 项：读档注入保底名额（主人原话不被流水挤掉）
+node test/step7.mjs      # 21 项：记忆矛盾检测（否定差异 / 正反义 / 长文本不误报）
 node test/benchmark.mjs  # 48 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 ```
 
-**102/102 通过**（2026-11-01 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
+**138/138 通过**（2026-11-03 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
 
 ## 功能解答（FAQ）
 
