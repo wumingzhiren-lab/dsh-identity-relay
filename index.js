@@ -26,6 +26,7 @@ import {
   readFacts,
   recallFacts,
   pickFactsForInjection,
+  readExpiredFacts,
   findConflicts,
   appendFact,
   retractFact,
@@ -152,6 +153,11 @@ async function buildInjection(source, cfg, memoryDir) {
     pinWindow: cfg.pinWindow,
     pinMax: cfg.pinMax,
   })
+  // 过期的 active 记忆不占正常名额，单独列一段——让读完档的人知道「这些事已经不作数了」
+  const expired = await readExpiredFacts(memoryDir, { limit: 3 }).catch(() => [])
+  const expiredLines = expired.length > 0
+    ? expired.map((f) => `- [${f.source || 'unknown'}] 有效期到 ${f.validTo}｜${f.content}`).join('\n')
+    : ''
 
   const factLines = facts.length > 0
     ? facts.map((f) => `- [${f.source || 'unknown'}] [${f.time || '?'}] ${f.content}`).join('\n')
@@ -168,6 +174,7 @@ async function buildInjection(source, cfg, memoryDir) {
       clip(handover, cfg.maxHandoverChars) || '（交接书为空：先接上眼前的事，收工前记得 relay_handover。）',
       '── 最近记忆 ──',
       factLines,
+      ...(expiredLines ? ['── 已过期（供参考，别再当现在的事）──', expiredLines] : []),
       `记忆库位置：${memoryDir}`,
       '上下文快满时会收到预警：先 relay_handover 写交接书，再继续。',
     ].join('\n\n')
@@ -182,6 +189,7 @@ async function buildInjection(source, cfg, memoryDir) {
     clip(handover, cfg.maxHandoverChars) || '（交接书为空。今天第一次开工：先把任务记下来，收工前用 relay_handover 写交接。）',
     '── 最近记忆（最新 ' + facts.length + ' 条）──',
     factLines,
+    ...(expiredLines ? ['── 已过期（供参考，别再当现在的事）──', expiredLines] : []),
     `记忆库位置：${memoryDir}`,
     '工具：relay_load 重读全文 · relay_remember 记住 · relay_recall 回忆 · relay_handover 写交接 · relay_persona 更新人格卡 · relay_status 查看状态。',
     '铁律：重要的身份、答应过的事、关键事实先 relay_remember；上下文快满时先 relay_handover 再继续干活。',
@@ -348,20 +356,23 @@ export function apply(ctx, config = {}) {
         source: { type: 'string', enum: ['owner', 'self', 'evidence', 'tool', 'inferred'], description: '来源。不填默认 inferred。' },
         subject: { type: 'string', description: '可选键（同一件事的固定标识，如作品名、办件号）。给了就同键新压旧。' },
         related: { type: 'array', items: { type: 'string' }, description: '可选：关联到已有记忆。每项填记忆 id 或一段内容片段（会解析成最近命中的那条 active 记忆），最多 5 个。之后 relay_recall 命中这条时会顺手带出关联记忆。' },
+        validFrom: { type: 'string', description: '可选：这条事实从什么时候开始成立（ISO 日期，如 2026-09-01）。不填 = 起点不清楚。' },
+        validTo: { type: 'string', description: '可选：这条事实到什么时候不再成立（ISO 日期，如 2027-07-01）。到点后不占注入名额，单独列在「已过期」；不填 = 长期有效。' },
       },
       required: ['content'],
     },
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => queueWrite(async () => {
-      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related })
+      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related, validFrom: args?.validFrom, validTo: args?.validTo })
       if (r.error) return r.error
       if (r.duplicated) return `这条已经记过了，没重复写：${r.entry.content}`
       await syncStamps()
       const stats = await storeStats(memoryDir).catch(() => null)
       const relNote = r.entry.related?.length ? `\n关联：${r.entry.related.length} 条` : ''
       const missNote = r.unresolved?.length ? `\n没解析到的关联（跳过）：${r.unresolved.join('、')}` : ''
-      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n来源：${r.entry.source}${r.entry.subject ? '，键：' + r.entry.subject : ''}${relNote}${missNote}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
+      const validNote = r.entry.validTo ? `\n有效期：${r.entry.validFrom || '（起点不清）'} → ${r.entry.validTo}` : ''
+      return `记住了（第 ${stats?.factCount ?? '?'} 条）：${r.entry.content}\n来源：${r.entry.source}${r.entry.subject ? '，键：' + r.entry.subject : ''}${validNote}${relNote}${missNote}\n（写进 ${join(memoryDir, 'facts.jsonl')}，换会话也不会丢。）`
     }),
   })
 
