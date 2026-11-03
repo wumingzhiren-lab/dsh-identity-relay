@@ -656,7 +656,13 @@ export function apply(ctx, config = {}) {
         stampsCheckedAt = Date.now()
         const stamps = await storeStamps(memoryDir)
         if (knownStamps === null) {
+          // 基线还没建好（ensureStore 的异步链没跑完）：推平的同时**也要把没注入过的捞出来**，
+          // 否则这段时间别处写进来的记忆会被当成"已知"，永远不送（2026-11-03 真机发现）
           knownStamps = stamps
+          try {
+            const pending = await readFactsSince(memoryDir, injectedIds, { limit: 3 })
+            if (pending.length > 0) fresh = pending
+          } catch (e) { warn('增量注入失败:', String(e?.message ?? e)) }
         } else {
           const diff = detectChanges(knownStamps, stamps)
           if (diff.changed.length > 0) {
