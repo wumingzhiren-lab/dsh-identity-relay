@@ -179,7 +179,7 @@ const TEXT_OUTPUT = {
  * 生成读档注入块。
  * @param source  SessionStartSource：startup / resume / clear / compact
  */
-async function buildInjection(source, cfg, memoryDir) {
+export async function buildInjection(source, cfg, memoryDir) {
   const [persona, handover] = await Promise.all([
     readTextSafe(join(memoryDir, PERSONA_FILE)),
     readTextSafe(join(memoryDir, HANDOVER_FILE)),

@@ -134,11 +134,12 @@ node test/step11.mjs     # 26 项：来源动态信任（按人工判错率降�
 node test/step12.mjs     # 26 项：检索升级（切词 + 双字组覆盖率，多词「与」匹配，子串回归对照）
 node test/step13.mjs     # 17 项：并发写压测（进程内 20 并发 / 跨进程 2x10 与 3x6，都不丢行）
 node test/step14.mjs     # 16 项：读档按相关性挑记忆（相关×新鲜×来源，保底名额不丢，空话题退回最近）
+node test/step15.mjs     # 12 项：接线层实测（真实 buildInjection 认不认 injectSelect，recent/relevance/resume 三路）
 node test/benchmark.mjs  # 49 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 node test/fuzz.mjs 200   # 随机压力：随机操作序列 + 极端输入，只测不变量（每轮 300+ 断言）
 ```
 
-**353/353 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
+**365/365 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
 
 **fuzz 关注的不变量**：每一行永远合法 JSON、无重复 id、同 subject 同时最多 1 条 active、行数不超硬上限、写入能原样读回、注入行不泄漏伪造的数据边界、指令识别对极端输入不抛异常。
 

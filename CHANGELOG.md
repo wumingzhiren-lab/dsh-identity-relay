@@ -20,7 +20,7 @@
 - 挑不出话题（交接书为空/空白）自动退回 `recent`——永远有兜底。保底名额（`pinSources`）在这个模式里也生效，名额 1 时宁可牺牲相关性也要留住主人原话。
 - 默认保持 `"recent"`：换行为要主人点头，先在真库上比对。
 - 真库比对（99 条 active）：`recent` 取到 owner+self 15/23，`relevance` 取到 **19/23**，并少进 5 条 tool/inferred 流水——同样 20 个名额，主人的话进得更多。
-- 单测 16 项（`test/step14.mjs`）。
+- 单测 16 项（`test/step14.mjs`）+ **接线层 12 项**（`test/step15.mjs`）：直接调真实 `buildInjection`，验证 startup/recent、startup/relevance、resume/relevance 三路都认这个开关，交接书空白会自动退回。0.4 那次「各分支互吞」的教训就是纯函数测不出接线，这一层补上了。
 
 ## 0.4.0（2026-11-03）
 
