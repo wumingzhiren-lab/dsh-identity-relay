@@ -16,6 +16,12 @@ ok('validTo 在未来 = 没过期', isExpired({ validTo: '2099-01-01T00:00:00.00
 ok('非法日期不炸、不判过期', isExpired({ validTo: '不是日期' }) === false)
 ok('空对象不炸', isExpired(null) === false)
 
+// 只写日期时按本地时区当天 23:59:59（审计 2026-11-03：原来按 UTC 零点 = 北京提前 8 小时到期）
+const today = new Date()
+const ymd = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-')
+ok('validTo 只写今天 → 本地时间当天内不算过期', isExpired({ validTo: ymd }) === false)
+ok('validFrom 只写今天 → 已经生效', isNotYetValid({ validFrom: ymd }) === false)
+
 // ── 写入与读回 ──
 const r1 = await appendFact(DIR, '主人这学期上大二', { source: 'owner', validFrom: '2026-09-01', validTo: '2027-07-01' })
 ok('写入保留 validFrom', r1.entry.validFrom === '2026-09-01')

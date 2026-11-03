@@ -79,5 +79,17 @@ await fs.writeFile(DIRTZ + '/facts.jsonl', [
 const tzr = await recallFacts(DIRTZ, '测试时区')
 ok('时区混用时排序正确（B 更晚，应在前）', tzr[0]?.id === 'z2')
 
+// ── 空 query = 最近几条（按时间，不按来源）──
+// 审计 2026-11-03：原来空 query 也走来源排序，说「最近」其实给「最可信」
+const DIREQ = 'C:/Users/admin/AppData/Local/Temp/relay-step11-emptyq'
+await fs.rm(DIREQ, { recursive: true, force: true })
+await fs.mkdir(DIREQ, { recursive: true })
+await fs.writeFile(DIREQ + '/facts.jsonl', [
+  JSON.stringify({ id: 'q1', time: '2026-01-01T00:00:00.000Z', content: '老的 owner 记忆', source: 'owner', status: 'active' }),
+  JSON.stringify({ id: 'q2', time: '2026-06-01T00:00:00.000Z', content: '新的 tool 记忆', source: 'tool', status: 'active' }),
+].join('\n') + '\n', 'utf8')
+const emptyq = await recallFacts(DIREQ, '')
+ok('空 query 按时间给最近（不看来源）', emptyq[0]?.id === 'q2')
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

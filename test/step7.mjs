@@ -101,5 +101,18 @@ ok('同 subject 两条跳过（不报否定矛盾）',
 const rev = findConflicts(facts.slice().reverse())
 ok('输入顺序无关', rev.length === findConflicts(facts).length)
 
+// 已过期 / 还没生效的不参与矛盾扫描（审计 2026-11-03：过期条还在报「矛盾」）
+const expiredPair = [
+  { id: 'e1', time: '2026-01-01T00:00:00.000Z', content: '温度是高的', source: 'tool', status: 'active', validTo: '2020-01-01' },
+  { id: 'e2', time: '2026-01-02T00:00:00.000Z', content: '温度不是高的', source: 'tool', status: 'active' },
+]
+ok('过期记忆不参与矛盾扫描', findConflicts(expiredPair).length === 0)
+
+const futurePair = [
+  { id: 'f1', time: '2026-01-01T00:00:00.000Z', content: '温度是高的', source: 'tool', status: 'active', validFrom: '2099-01-01' },
+  { id: 'f2', time: '2026-01-02T00:00:00.000Z', content: '温度不是高的', source: 'tool', status: 'active' },
+]
+ok('未生效记忆不参与矛盾扫描', findConflicts(futurePair).length === 0)
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

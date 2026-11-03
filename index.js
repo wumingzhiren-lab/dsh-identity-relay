@@ -118,11 +118,12 @@ function makeMessage(text) {
   }
 }
 
-/** 按字符安全截断，超出补省略号。 */
+/** 按 code point 安全截断，超出补省略号（`slice` 会把代理对/emoji 切成半个字符）。 */
 function clip(text, max) {
   const s = String(text ?? '')
-  if (s.length <= max) return s
-  return s.slice(0, max) + '\n…（已截断，全文用 relay_load 重读）'
+  const chars = Array.from(s)
+  if (chars.length <= max) return s
+  return chars.slice(0, max).join('') + '\n…（已截断，全文用 relay_load 重读）'
 }
 
 /**
