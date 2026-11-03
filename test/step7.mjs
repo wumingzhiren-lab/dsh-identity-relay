@@ -8,6 +8,7 @@ await fs.rm(DIR, { recursive: true, force: true })
 await fs.mkdir(DIR, { recursive: true })
 let pass = 0, fail = 0
 const ok = (name, cond) => { if (cond) { pass++; console.log('PASS', name) } else { fail++; console.log('FAIL', name) } }
+const cross = (p, x, y) => (p.a.content.includes(x) && p.b.content.includes(y)) || (p.b.content.includes(x) && p.a.content.includes(y))
 
 // ── 单元：归一化 ──
 const n1 = normalizeForConflict('主人不喜欢喝咖啡。')
@@ -27,19 +28,32 @@ await appendFact(DIR, '主人喜欢喝咖啡', { source: 'owner' })
 await appendFact(DIR, '主人不喜欢喝咖啡', { source: 'evidence' })
 let facts = await readFacts(DIR, { limit: 1000 })
 let pairs = findConflicts(facts)
-ok('否定差异命中', pairs.some((p) => p.reason === 'negation'))
+ok('否定差异命中', pairs.some((p) => cross(p, '喜欢喝咖啡', '不喜欢喝咖啡')))
 
 await appendFact(DIR, '主人喜欢打游戏', { source: 'owner' })
 await appendFact(DIR, '主人讨厌打游戏', { source: 'evidence' })
 facts = await readFacts(DIR, { limit: 1000 })
 pairs = findConflicts(facts)
-ok('正反义命中', pairs.some((p) => p.reason.startsWith('antonym')))
+ok('正反义命中', pairs.some((p) => p.reason.startsWith('polarity')))
+
+// 极性表的同义扩展：中意 / 反感（老的正反义表里没有这一对，原来会漏）
+await appendFact(DIR, '主人中意这个方案', { source: 'owner' })
+await appendFact(DIR, '主人反感这个方案', { source: 'evidence' })
+facts = await readFacts(DIR, { limit: 1000 })
+pairs = findConflicts(facts)
+ok('同义变体归并成正反（中意/反感）', pairs.some((p) => p.reason === 'polarity:like' && cross(p, '中意这个方案', '反感这个方案')))
+
+// 同义同极性的两条不算矛盾（「讨厌」和「不爱」是一回事，不是打架）
+await appendFact(DIR, '主人讨厌下雨天', { source: 'owner' })
+await appendFact(DIR, '主人不爱下雨天', { source: 'evidence' })
+facts = await readFacts(DIR, { limit: 1000 })
+pairs = findConflicts(facts)
+ok('同义同极性不误报（讨厌/不爱）', !pairs.some((p) => cross(p, '讨厌下雨天', '不爱下雨天')))
 
 await appendFact(DIR, '今天下了很大的雨', { source: 'tool' })
 await appendFact(DIR, '主人的电脑是 Windows', { source: 'tool' })
 facts = await readFacts(DIR, { limit: 1000 })
 pairs = findConflicts(facts)
-const cross = (p, x, y) => (p.a.content.includes(x) && p.b.content.includes(y)) || (p.b.content.includes(x) && p.a.content.includes(y))
 ok('无关记忆不误报', !pairs.some((p) => cross(p, '下了很大的雨', 'Windows')))
 
 // 单字兜底：否定词夹在词中间，双字组会拼错位（「今天有课」→「今天课」）
