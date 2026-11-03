@@ -181,6 +181,13 @@ const TEXT_OUTPUT = {
  * @param source  SessionStartSource：startup / resume / clear / compact
  */
 export async function buildInjection(source, cfg, memoryDir) {
+  // 0.5：挑法以「传进来的配置」为准，但缺字段时退回默认值，不能静默降级成 recent。
+  // 2026-11-03 真机抓到：调用点漏传 injectSelect，status 说 relevance、实际还在用 recent。
+  const select = cfg?.injectSelect === 'recent'
+    ? 'recent'
+    : cfg?.injectSelect === 'relevance'
+      ? 'relevance'
+      : DEFAULTS.injectSelect
   const [persona, handover] = await Promise.all([
     readTextSafe(join(memoryDir, PERSONA_FILE)),
     readTextSafe(join(memoryDir, HANDOVER_FILE)),
@@ -190,9 +197,9 @@ export async function buildInjection(source, cfg, memoryDir) {
     pinSources: cfg.pinSources,
     pinWindow: cfg.pinWindow,
     pinMax: cfg.pinMax,
-    mode: cfg.injectSelect,
+    mode: select,
     // 0.5：读档时还没有对话内容，用交接书当话题算相关性；没有交接书就自动退回最近 N 条。
-    query: cfg.injectSelect === 'relevance' ? handover : '',
+    query: select === 'relevance' ? handover : '',
   })
   // 过期的 active 记忆不占正常名额，单独列一段——让读完档的人知道「这些事已经不作数了」
   const expired = await readExpiredFacts(memoryDir, { limit: 3 }).catch(() => [])
@@ -220,7 +227,7 @@ export async function buildInjection(source, cfg, memoryDir) {
       personaHead,
       '── 交接书 handover.md ──',
       clip(handover, cfg.maxHandoverChars) || '（交接书为空：先接上眼前的事，收工前记得 relay_handover。）',
-      cfg.injectSelect === 'relevance' ? '── 相关记忆（按交接书话题挑）──' : '── 最近记忆 ──',
+      select === 'relevance' ? '── 相关记忆（按交接书话题挑）──' : '── 最近记忆 ──',
       factBlock,
       ...(expiredLines ? ['── 已过期（供参考，别再当现在的事）──', expiredLines] : []),
       `记忆库位置：${memoryDir}`,
@@ -235,7 +242,7 @@ export async function buildInjection(source, cfg, memoryDir) {
     clip(persona, cfg.maxInjectChars) || '（人格卡还是空的。请 owner 把「你是谁」写进 persona.md，或由你用 relay_persona 更新它。）',
     '── 交接书 handover.md ──',
     clip(handover, cfg.maxHandoverChars) || '（交接书为空。今天第一次开工：先把任务记下来，收工前用 relay_handover 写交接。）',
-    cfg.injectSelect === 'relevance'
+    select === 'relevance'
       ? '── 相关记忆（按交接书话题挑 ' + facts.length + ' 条）──'
       : '── 最近记忆（最新 ' + facts.length + ' 条）──',
     factBlock,
@@ -642,6 +649,8 @@ export function apply(ctx, config = {}) {
         pinSources,
         pinWindow,
         pinMax,
+        // 2026-11-03 真机抓到：这一行漏了，status 显示 relevance、注入却还在用 recent。
+        injectSelect,
       }, memoryDir)
       agent.inject(makeMessage(block))
       // 开场已经带过的记忆标成「已在上下文里」，之后只增量送新写的
