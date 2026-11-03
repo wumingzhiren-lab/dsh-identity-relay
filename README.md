@@ -78,6 +78,7 @@ dsh plugin add <本目录绝对路径>
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
+| `enabled` | `true` | 总开关，设 `false` 整个插件不加载任何行为 |
 | `memoryDir` | `~/.dsh/identity-memory` | 记忆库目录，支持 `~` 和绝对路径 |
 | `injectOnCreated` | `true` | 新会话自动注入读档块 |
 | `injectOnResume` | `true` | 恢复会话注入精简续接块 |
@@ -87,8 +88,13 @@ dsh plugin add <本目录绝对路径>
 | `warnRatio` | `0.7` | 占用达到该比例时提醒写交接 |
 | `reserveTokens` | `40000` | 窗口剩余低于该值也提醒（与比例无关的第二道保险） |
 | `nudgeMinutes` | `10` | 同一会话两次预警最小间隔 |
-| `maxFacts` | `2000` | facts.jsonl 最多保留条数 |
+| `maxFacts` | `2000` | facts.jsonl 最多保留条数。**有 100 条硬下限**：设比 100 小的值会被抬到 100（防呆，避免配错把记忆裁光） |
 | `recallLimit` | `20` | 读档注入的最近记忆条数 |
+| `pinSources` | `["owner","self"]` | **保底名额**给哪些来源单独占位，不让最近的流水把它们挤出去。设成 `[]` 等于关掉保底 |
+| `pinWindow` | `300` | 保底名额只在最近 N 条 active 里挑，不会翻出几百条前的旧话 |
+| `pinMax` | `0` | 保底名额上限；`0` = 自动取 `ceil(recallLimit/3)`（20 条时是 7 个） |
+| `maxInjectChars` | `6000` | 注入的人格卡最大字符数（超出会截断并提示用 `relay_load` 看全文） |
+| `maxHandoverChars` | `4000` | 注入的交接书最大字符数 |
 
 ## 八个工具（bot 自己会用）
 
