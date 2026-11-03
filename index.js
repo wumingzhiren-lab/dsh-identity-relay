@@ -40,6 +40,7 @@ import {
   PERSONA_FILE,
   HANDOVER_FILE,
 } from './lib/store.mjs'
+import { shouldNudgeCapacity, shouldNudgeArchive } from './lib/nudges.mjs'
 
 export const name = 'dsh-identity-relay'
 export const inject = ['tools', 'systemPrompt']
@@ -600,7 +601,7 @@ export function apply(ctx, config = {}) {
               }
             }
             // 兜底提示（一分钟最多一次）：人格卡/交接书变了，光靠增量记忆补不回来
-            if (Date.now() - lastArchiveNudgeAt >= 60000) {
+            if (shouldNudgeArchive({ changed, lastNudgeAt: lastArchiveNudgeAt, nudgeMs: 60000 })) {
               lastArchiveNudgeAt = Date.now()
               const label = { persona: PERSONA_FILE, handover: HANDOVER_FILE, facts: 'facts.jsonl' }
               extra.push(makeMessage([
@@ -620,22 +621,17 @@ export function apply(ctx, config = {}) {
         const m = meter.measure(agent.session)
         const used = m?.totalTokens ?? 0
         const window = effectiveWindow(agent.session, contextWindow)
+        const id = agent.id
         // 两道保险任一命中就预警：比例线（常规）+ 剩余绝对值（大窗口防空转）。
-        const remaining = window - used
-        const overRatio = window > 0 && used / window >= warnRatio
-        const lowReserve = remaining <= reserveTokens
-        if (window > 0 && (overRatio || lowReserve)) {
-          const id = agent.id
-          const last = nudgeTimes.get(id) ?? 0
-          if (Date.now() - last >= nudgeMs) {
-            nudgeTimes.set(id, Date.now())
-            const ratio = (used / window * 100).toFixed(1)
-            extra.push(makeMessage([
-              '[人格接力 · 容量预警] 当前上下文已用约 ' + ratio + '%（≈' + used + ' tokens / 窗口 ' + window + '，剩余约 ' + remaining + '）。',
-              '继续干活之前，先调用 relay_handover 把「我是谁、正在做什么、接下来做什么、答应过什么」写进交接书。',
-              '这样就算上下文被清空或压缩，下一世的我也能照常接上——不会变成别人。',
-            ].join('\n')))
-          }
+        if (shouldNudgeCapacity({ used, window, warnRatio, reserveTokens, lastNudgeAt: nudgeTimes.get(id) ?? 0, nudgeMs })) {
+          nudgeTimes.set(id, Date.now())
+          const remaining = window - used
+          const ratio = (used / window * 100).toFixed(1)
+          extra.push(makeMessage([
+            '[人格接力 · 容量预警] 当前上下文已用约 ' + ratio + '%（≈' + used + ' tokens / 窗口 ' + window + '，剩余约 ' + remaining + '）。',
+            '继续干活之前，先调用 relay_handover 把「我是谁、正在做什么、接下来做什么、答应过什么」写进交接书。',
+            '这样就算上下文被清空或压缩，下一世的我也能照常接上——不会变成别人。',
+          ].join('\n')))
         }
       }
     } catch (e) { warn('容量预警失败:', String(e?.message ?? e)) }
