@@ -1,7 +1,7 @@
 // step8.mjs — 记忆有效期（valid time）：过期的 active 记忆不占注入名额（临时目录）
 // 运行：node test/step8.mjs（从插件根目录）
 import { promises as fs } from 'node:fs'
-import { appendFact, parseFacts, pickFactsForInjection, readExpiredFacts, isExpired } from '../lib/store.mjs'
+import { appendFact, parseFacts, pickFactsForInjection, readExpiredFacts, isExpired, isNotYetValid, isEffective } from '../lib/store.mjs'
 
 const DIR = 'C:/Users/admin/AppData/Local/Temp/relay-step8-test'
 await fs.rm(DIR, { recursive: true, force: true })
@@ -56,6 +56,27 @@ await appendFact(DIR, '过期又作废的', { source: 'tool', validTo: '2020-01-
 await retractFact(DIR, '过期又作废的', { note: '测试' })
 const exp2 = await readExpiredFacts(DIR)
 ok('作废的不进过期列表', !exp2.some((f) => f.content === '过期又作废的'))
+
+// ── 未生效（validFrom 在未来）同样不该进注入 ──
+ok('validFrom 在未来 = 还没生效', isNotYetValid({ validFrom: '2099-01-01' }) === true)
+ok('validFrom 在过去 = 已生效', isNotYetValid({ validFrom: '2020-01-01' }) === false)
+ok('无 validFrom = 一直算成立', isNotYetValid({}) === false)
+ok('isEffective：还没开始不算', isEffective({ validFrom: '2099-01-01' }) === false)
+ok('isEffective：已过期不算', isEffective({ validTo: '2020-01-01' }) === false)
+ok('isEffective：普通记忆算', isEffective({ content: 'x' }) === true)
+
+await appendFact(DIR, '2027 年春季开始带计算机课', { source: 'owner', validFrom: '2027-03-01' })
+const inj2 = await pickFactsForInjection(DIR, { limit: 20 })
+ok('未到生效日的不进注入', !inj2.some((f) => f.content.startsWith('2027 年春季')))
+
+// ── 同键替换给旧条补 validTo（历史链要连得上）──
+await appendFact(DIR, '项目状态：进行中', { source: 'tool', subject: 'proj' })
+await appendFact(DIR, '项目状态：已完成', { source: 'tool', subject: 'proj' })
+const all2 = await parseFacts(DIR)
+const oldProj = all2.find((f) => f.content === '项目状态：进行中')
+ok('同键替换给旧条补了 validTo', !!oldProj && !!oldProj.validTo)
+ok('旧条被盖章为 superseded', oldProj && oldProj.status === 'superseded')
+ok('旧条的 validTo 等于新条写入时刻', oldProj && !isNaN(Date.parse(oldProj.validTo)))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)

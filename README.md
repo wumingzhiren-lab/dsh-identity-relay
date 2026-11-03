@@ -111,11 +111,11 @@ node test/step4.mjs      # 26 项：来源五档、作废盖章、同键替换�
 node test/step5.mjs      # 18 项：关联记忆、软归档、检索上限与来源优先、跨进程写锁
 node test/step6.mjs      # 13 项：读档注入保底名额（主人原话不被流水挤掉）
 node test/step7.mjs      # 23 项：记忆矛盾检测（否定差异 / 极性概念组 / 长文本不误报）
-node test/step8.mjs      # 18 项：记忆有效期（到点退出生效区、不占注入名额、老数据不受影响）
+node test/step8.mjs      # 28 项：记忆有效期（validFrom/validTo 一起判、同键补结束时间、老数据不受影响）
 node test/benchmark.mjs  # 48 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 ```
 
-**158/158 通过**（2026-11-03 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
+**168/168 通过**（2026-11-03 实测）。2026-11-02 起 store 层新增**跨进程写锁**（`facts.lock`，与桌宠 relay_store.py 同协议）：`E08` 的进程内串行锁之外，跨进程写同一 `memoryDir` 会排队串行、不再互相覆盖（陈旧锁 30s 自动抢占；见 Q8）。
 
 ## 功能解答（FAQ）
 
