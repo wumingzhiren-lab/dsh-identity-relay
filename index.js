@@ -96,6 +96,13 @@ const DEFAULTS = {
   maxInjectChars: 6000,
   /** 注入的交接书最大字符数。 */
   maxHandoverChars: 4000,
+  /**
+   * 读档挑哪些记忆（0.5）：
+   *  - 'recent'    = 最近 N 条 + 保底名额（v0.4 行为，默认）
+   *  - 'relevance' = 用交接书当话题，按「相关 × 新鲜 × 来源」挑 N 条（挑不出话题时自动退回 recent）
+   * 默认先留在 'recent'：换了行为要主人点头，并且在真库上比对过再翻。
+   */
+  injectSelect: 'recent',
 }
 
 function resolveMemoryDir(config) {
@@ -182,6 +189,9 @@ async function buildInjection(source, cfg, memoryDir) {
     pinSources: cfg.pinSources,
     pinWindow: cfg.pinWindow,
     pinMax: cfg.pinMax,
+    mode: cfg.injectSelect,
+    // 0.5：读档时还没有对话内容，用交接书当话题算相关性；没有交接书就自动退回最近 N 条。
+    query: cfg.injectSelect === 'relevance' ? handover : '',
   })
   // 过期的 active 记忆不占正常名额，单独列一段——让读完档的人知道「这些事已经不作数了」
   const expired = await readExpiredFacts(memoryDir, { limit: 3 }).catch(() => [])
@@ -209,7 +219,7 @@ async function buildInjection(source, cfg, memoryDir) {
       personaHead,
       '── 交接书 handover.md ──',
       clip(handover, cfg.maxHandoverChars) || '（交接书为空：先接上眼前的事，收工前记得 relay_handover。）',
-      '── 最近记忆 ──',
+      cfg.injectSelect === 'relevance' ? '── 相关记忆（按交接书话题挑）──' : '── 最近记忆 ──',
       factBlock,
       ...(expiredLines ? ['── 已过期（供参考，别再当现在的事）──', expiredLines] : []),
       `记忆库位置：${memoryDir}`,
@@ -224,7 +234,9 @@ async function buildInjection(source, cfg, memoryDir) {
     clip(persona, cfg.maxInjectChars) || '（人格卡还是空的。请 owner 把「你是谁」写进 persona.md，或由你用 relay_persona 更新它。）',
     '── 交接书 handover.md ──',
     clip(handover, cfg.maxHandoverChars) || '（交接书为空。今天第一次开工：先把任务记下来，收工前用 relay_handover 写交接。）',
-    '── 最近记忆（最新 ' + facts.length + ' 条）──',
+    cfg.injectSelect === 'relevance'
+      ? '── 相关记忆（按交接书话题挑 ' + facts.length + ' 条）──'
+      : '── 最近记忆（最新 ' + facts.length + ' 条）──',
     factBlock,
     ...(expiredLines ? ['── 已过期（供参考，别再当现在的事）──', expiredLines] : []),
     `记忆库位置：${memoryDir}`,
@@ -252,6 +264,8 @@ export function apply(ctx, config = {}) {
     : DEFAULTS.pinSources
   const pinWindow = Math.round(pickNumber(cfg.pinWindow, DEFAULTS.pinWindow, 1, 100000))
   const pinMax = Math.round(pickNumber(cfg.pinMax, DEFAULTS.pinMax, 0, 100))
+  // 0.5：挑记忆的方式。只认两个值，写错就退回默认（不静默变成奇怪行为）。
+  const injectSelect = cfg.injectSelect === 'relevance' ? 'relevance' : 'recent'
 
   /** 本进程已经注入进上下文的记忆 id：用于「别的会话新写的记忆，下一步直接送进来」。 */
   const injectedIds = new Set()
@@ -371,7 +385,8 @@ export function apply(ctx, config = {}) {
           parts.push(`上下文压力：约 ${used} tokens / 窗口 ${window}（${(ratio * 100).toFixed(1)}%，剩余约 ${remaining}）${over ? ' —— 已过预警线，先 relay_handover 写交接！' : ''}`)
         }
       } catch { /* 压力估算失败不报错 */ }
-      parts.push(`配置：预警线 ${(warnRatio * 100).toFixed(0)}% 或剩余不足 ${reserveTokens} tokens（任一命中），每次读档注入最近 ${recallLimit} 条记忆。`)
+      const pickModeText = injectSelect === 'relevance' ? '按交接书话题挑的' : '最近'
+  parts.push(`配置：预警线 ${(warnRatio * 100).toFixed(0)}% 或剩余不足 ${reserveTokens} tokens（任一命中），每次读档注入${pickModeText} ${recallLimit} 条记忆。`)
       return parts.join('\n')
     },
   })
