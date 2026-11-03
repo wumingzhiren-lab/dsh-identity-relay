@@ -22,6 +22,14 @@ const ymd = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'),
 ok('validTo 只写今天 → 本地时间当天内不算过期', isExpired({ validTo: ymd }) === false)
 ok('validFrom 只写今天 → 已经生效', isNotYetValid({ validFrom: ymd }) === false)
 
+// 非法日期要拒绝（UX 审计 2026-11-03：「明年七月」原来被静默收下，然后永远算有效）
+const badTo = await appendFact(DIR, '日期测试一条', { validTo: '明年七月' })
+ok('非日期 validTo 被拒绝', badTo.appended === false && typeof badTo.error === 'string')
+const badFrom = await appendFact(DIR, '日期测试二条', { validFrom: '下个月' })
+ok('非日期 validFrom 被拒绝', badFrom.appended === false && typeof badFrom.error === 'string')
+const okDate = await appendFact(DIR, '日期测试三条', { validFrom: '2026-09-01', validTo: '2027-07-01' })
+ok('标准 ISO 日期照常接受', okDate.appended === true)
+
 // ── 写入与读回 ──
 const r1 = await appendFact(DIR, '主人这学期上大二', { source: 'owner', validFrom: '2026-09-01', validTo: '2027-07-01' })
 ok('写入保留 validFrom', r1.entry.validFrom === '2026-09-01')

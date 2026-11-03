@@ -123,12 +123,31 @@ function makeMessage(text) {
   }
 }
 
-/** 按 code point 安全截断，超出补省略号（`slice` 会把代理对/emoji 切成半个字符）。 */
-function clip(text, max) {
+/** 按 code point 安全截断，超出补省略号（`slice` 会把代理对/emoji 切成半个字符）。 */function clip(text, max) {
   const s = String(text ?? '')
   const chars = Array.from(s)
   if (chars.length <= max) return s
   return chars.slice(0, max).join('') + '\n…（已截断，全文用 relay_load 重读）'
+}
+
+/**
+ * 把记忆库的原始 Node 错误翻成人话（UX 审计 2026-11-03）。
+ * memoryDir 配错时原来直接吐 ENOENT / ENOTDIR，新手不知道要去改配置。
+ */
+function friendlyStoreError(err, dir) {
+  const code = String(err?.code ?? '')
+  const raw = String(err?.message ?? err ?? '')
+  let hint = ''
+  if (code === 'ENOENT') hint = '目录或文件不存在。'
+  else if (code === 'ENOTDIR') hint = '路径里有一段不是目录（可能把文件路径填成了目录）。'
+  else if (code === 'EACCES' || code === 'EPERM') hint = '没有写权限。'
+  else if (/facts\.lock/.test(raw)) hint = '写锁被占用或残留。'
+  return [
+    `记忆库写入失败：${dir}`,
+    hint ? `原因：${hint}` : '',
+    `原始错误：${raw}`,
+    '检查 memoryDir 配置：目录存在、是目录、当前用户可写。',
+  ].filter(Boolean).join('\n')
 }
 
 /**
@@ -413,7 +432,13 @@ export function apply(ctx, config = {}) {
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => queueWrite(async () => {
-      const r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related, validFrom: args?.validFrom, validTo: args?.validTo })
+      let r
+      try {
+        r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related, validFrom: args?.validFrom, validTo: args?.validTo })
+      } catch (e) {
+        // 目录不存在/不可写时会抛原始 Node 错误，新手看不懂（UX 审计 2026-11-03）
+        return friendlyStoreError(e, memoryDir)
+      }
       if (r.error) return r.error
       if (r.duplicated) return `这条已经记过了，没重复写：${r.entry.content}`
       await syncStamps()
