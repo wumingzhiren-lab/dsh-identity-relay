@@ -113,14 +113,14 @@ dsh plugin add <本目录绝对路径>
 - `relay_remember` — 记一条长期记忆（身份、偏好、承诺、教训）。带 `source`（owner/self/evidence/tool/inferred，默认 inferred 垫底）；带 `subject` 键则同键新压旧，旧记忆自动盖章作废；带 `related` 可挂到已有记忆上（填 id 或内容片段，最多 5 个）；带 `validFrom` / `validTo`（ISO 日期）则到点后退出生效区、单独列进「已过期」；带 `importance`（0–10，这事有多戳人）则读档时优先被挑中——不填就按来源和信号词自动估
 - `relay_recall` — 按关键词回忆。最多 20 条（硬上限），排序先看来源可信度再按时间；命中条目的关联记忆会带出（最多 3 条）；默认只出 active，`includeSuperseded: true` 翻案看历史
 - `relay_retract` — 把一条记忆盖章作废：按内容片段定位，标 `superseded` 并记原因。**作废不删行**，历史保留
-- `relay_conflicts` — 列出**可能互相矛盾**的记忆对（纯规则：否定词差异 + 正反义词，不调模型）。**只报告，不自动作废**——规则只能发现可疑，盖哪条由人和 bot 决定。同 `subject` 的已被同键替换处理，不参与
+- `relay_conflicts` — 列出**可能互相矛盾**的记忆对（纯规则：否定词差异 + 正反义词，不调模型），每对带稳定编号 `#xxxxxxxx` 和「建议动作」（如「建议盖旧的」，旧的是主人原话时一律建议人工判断）。默认**只报告，不动数据**；要执行得显式传 `pairId` + `which` + `apply:true`（走 relay_retract 盖章、不删行），且**主人原话不会从这个口子被盖**。同 `subject` 的已被同键替换处理，不参与
 - `relay_handover` — 读/写交接书
 - `relay_persona` — 读/更新人格卡
 - `relay_status` — 记忆库状态（active/已作废/已归档计数）+ 历史备份数 + 当前上下文压力
 
 ## 测试
 
-十套测试全在临时目录跑，**不碰真实记忆库**：
+全部测试全在临时目录跑，**不碰真实记忆库**：
 
 ```bash
 node test/smoke.mjs      # 12 项：记忆库层冒烟（建库/追加/去重/检索/统计）
@@ -138,11 +138,12 @@ node test/step14.mjs     # 16 项：读档按相关性挑记忆（相关×新鲜
 node test/step15.mjs     # 14 项：接线层实测（真实 buildInjection 认不认 injectSelect，recent/relevance/resume 三路 + 调用点漏传回归）
 node test/step16.mjs     # 17 项：注入体积预算（字符预算截断、至少留 1 条、0=不设限、漏传走默认）
 node test/step17.mjs     # 21 项：记忆重要度（显式打分 / 启发式兜底 / 落盘 / 注入排序用它）
+node test/step18.mjs     # 21 项：冲突处理（稳定编号 / 建议动作 / 显式执行 / 主人原话不在此被盖）
 node test/benchmark.mjs  # 49 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 node test/fuzz.mjs 200   # 随机压力：随机操作序列 + 极端输入，只测不变量（每轮 300+ 断言）
 ```
 
-**405/405 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
+**426/426 通过**（2026-11-03 实测），外加 `test/fuzz.mjs` 随机压力测试三轮全过（332 / 338 / 343 项随机断言）。
 
 **fuzz 关注的不变量**：每一行永远合法 JSON、无重复 id、同 subject 同时最多 1 条 active、行数不超硬上限、写入能原样读回、注入行不泄漏伪造的数据边界、指令识别对极端输入不抛异常。
 

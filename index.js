@@ -33,6 +33,8 @@ import {
   looksLikeInstruction,
   sanitizeMemoryText,
   findConflicts,
+  resolveConflict,
+  suggestConflictAction,
   isExpired,
   isNotYetValid,
   appendFact,
@@ -546,11 +548,15 @@ export function apply(ctx, config = {}) {
 
   registerTool({
     name: 'relay_conflicts',
-    description: '列出可能互相矛盾的记忆对（纯规则检测：否定词差异 + 正反义词，不调模型）。**只报告，不自动作废**——规则只能发现可疑，盖哪条由你或主人决定，确认后用 relay_retract 盖章。同 subject 的两条不参与（那是同键替换的地盘，写完已自动盖章）。',
+    description: '列出可能互相矛盾的记忆对（纯规则检测：否定词差异 + 正反义词，不调模型），每对带稳定编号、相似度和「建议动作」。默认**只报告，不动数据**——规则只能发现可疑，盖哪条由你或主人决定。给了 pairId + which + apply:true 才会真的执行（用 relay_retract 盖章，不删行）；主人原话不会在这里被盖。同 subject 的两条不参与（写完已自动盖章）。',
     parameters: {
       type: 'object',
       properties: {
         scanLimit: { type: 'integer', description: '只比较最近多少条 active 记忆，默认 200。' },
+        pairId: { type: 'string', description: '要处理的那对冲突的编号（列表里显示的 #xxxxxxxx）。给了才进入执行模式。' },
+        which: { type: 'string', enum: ['a', 'b'], description: '盖掉 A 还是 B，默认 a。' },
+        apply: { type: 'boolean', description: '必须显式传 true 才真的盖章；不传只做预览。' },
+        note: { type: 'string', description: '盖章原因（写进 retractNote，方便以后翻案）。' },
       },
     },
     output: TEXT_OUTPUT,
@@ -559,14 +565,29 @@ export function apply(ctx, config = {}) {
       const scanLimit = Math.round(pickNumber(args?.scanLimit, 200, 2, 2000))
       const facts = await readFacts(memoryDir, { limit: 1000 })
       const pairs = findConflicts(facts, { scanLimit })
+      // 执行模式：显式给了编号和 apply:true 才动数据
+      if (args?.pairId) {
+        if (args?.apply !== true) {
+          const p = pairs.find((x) => x.id === String(args.pairId))
+          if (!p) return `没找到冲突对 #${args.pairId}——重新跑一次 relay_conflicts 拿新编号。`
+          const target = args?.which === 'b' ? p.b : p.a
+          const s = suggestConflictAction(p)
+          return `预览（没动数据）：会盖掉 [${target.source || 'unknown'}] ${target.time || '?'} ${target.content}\n建议：${s.action}（${s.why}）\n确认就再调一次，带 apply:true。`
+        }
+        const r = await queueWrite(async () => resolveConflict(memoryDir, pairs, { pairId: args.pairId, which: args?.which, note: args?.note }))
+        if (!r.ok) return r.error
+        await syncStamps()
+        return `已处理冲突 #${String(args.pairId)}：把「${r.target.content}」盖章作废${r.result?.error ? `（失败：${r.result.error}）` : '（不删行，可翻案）'}。`
+      }
       if (pairs.length === 0) {
         return `最近 ${scanLimit} 条 active 记忆里，没发现规则可判的矛盾（否定差异/正反义）。\n注意：同义不同词（喜欢/爱）、更细的语义冲突，这套规则检测不了——它只能筛出「明显打架」的。`
       }
       const shown = pairs.slice(0, 20).map((p, i) => {
         const label = p.reason === 'negation' ? '否定差异' : '正反义 ' + p.reason.slice(8)
-        return `${i + 1}. [${label}] 相似度 ${p.similarity}\n   A [${p.a.source || 'unknown'}] ${p.a.time || '?'} ${p.a.content}\n   B [${p.b.source || 'unknown'}] ${p.b.time || '?'} ${p.b.content}`
+        const s = suggestConflictAction(p)
+        return `${i + 1}. #${p.id} [${label}] 相似度 ${p.similarity}｜建议：${s.action}（${s.why}）\n   A [${p.a.source || 'unknown'}] ${p.a.time || '?'} ${p.a.content}\n   B [${p.b.source || 'unknown'}] ${p.b.time || '?'} ${p.b.content}`
       })
-      return `发现 ${pairs.length} 对疑似矛盾（只报告，没动数据）：\n${shown.join('\n')}${pairs.length > 20 ? '\n（只显示前 20 对）' : ''}\n\n确认哪条是错的之后：relay_retract 传内容片段 + 原因，盖章作废。`
+      return `发现 ${pairs.length} 对疑似矛盾（只报告，没动数据）：\n${shown.join('\n')}${pairs.length > 20 ? '\n（只显示前 20 对）' : ''}\n\n处理办法：先跟主人确认盖哪条，再调 relay_conflicts 带 pairId + which + apply:true；不想用这个口子就照旧 relay_retract 传内容片段 + 原因。`
     },
   })
 
