@@ -7,19 +7,21 @@ import { newStore, mount, check, report } from './harness.mjs'
 
 const now = () => Date.now()
 
-// ── 1) 崩溃残留锁：新鲜 mtime（刚崩 1 秒）→ 写入要等 5 秒再报错 ───────────
+// ── 1) 崩溃残留锁（2026-11-03 修复后的行为，原审计快照的断言已过期）──
+// 原来：刚崩的锁要干等 30 秒，写入 5 秒后抛错。
+// 现在：锁里记的 pid 已经不存在 → 立刻抢占，不用等。
 {
   const dir = await newStore()
   await writeFile(join(dir, LOCK_FILE), JSON.stringify({ pid: 999999, time: new Date().toISOString() }))
   const t0 = now()
-  let err = null
-  try { await appendFact(dir, '崩溃后第一条', { source: 'owner' }) } catch (e) { err = e }
+  let r = null
+  try { r = await appendFact(dir, '崩溃后第一条', { source: 'owner' }) } catch (e) { r = e }
   const dt = now() - t0
-  check('T3-1 崩溃残留锁（刚崩）会让写入失败', !!err,
-    `${err && err.message}，耗时 ${dt}ms`)
-  check('T3-2 失败信息里点出锁文件（可操作性）', !!err && /facts\.lock/.test(String(err.message)),
-    String(err?.message))
-  // 残留锁 30 秒后是否能自愈
+  check('T3-1 死进程残留锁被立即抢占（不再干等 30 秒）', r?.appended === true && dt < 2000,
+    `${JSON.stringify(r?.appended ?? r?.message)}，耗时 ${dt}ms`)
+
+  // 超过 30 秒的陈旧锁也要能自愈（不管 pid 是谁）
+  await writeFile(join(dir, LOCK_FILE), JSON.stringify({ pid: process.pid, time: new Date().toISOString() }))
   const old = new Date(Date.now() - 31000)
   await fs.utimes(join(dir, LOCK_FILE), old, old)
   const t1 = now()
@@ -38,14 +40,14 @@ const now = () => Date.now()
   const future = new Date(Date.now() + 6 * 3600 * 1000) // 系统时钟回拨前留下的锁
   await fs.utimes(lockPath, future, future)
   const t0 = now()
-  let err = null
-  try { await appendFact(dir, '时钟回拨时写入', { source: 'owner' }) } catch (e) { err = e }
-  check('T3-4 未来 mtime 的锁被当作“正在使用”（写入失败）', !!err, `耗时 ${now() - t0}ms，${err?.message}`)
+  let r = null
+  try { r = await appendFact(dir, '时钟回拨时写入', { source: 'owner' }) } catch (e) { r = e }
+  // 2026-11-03 修复：mtime 在未来按陈旧锁处理，不再永久不可写
+  check('T3-4 未来 mtime 的锁被抢占（不再永久只读）', r?.appended === true,
+    `${JSON.stringify(r?.appended ?? r?.message)}，耗时 ${now() - t0}ms`)
   const facts = await parseFacts(dir)
-  check('T3-4b 读取仍正常（只有写被卡死）', Array.isArray(facts))
-  // 5 分钟后再试还是失败吗？——只要 mtime 在未来就不会自愈
-  const stillFuture = await fs.stat(lockPath).then((s) => s.mtimeMs > Date.now())
-  check('T3-5 该锁在 mtime 到期前不会自愈（长达数小时不可写）', stillFuture)
+  check('T3-4b 写入后数据正常可读', Array.isArray(facts) && facts.length >= 1)
+  check('T3-5 抢占后锁已释放（可继续写）', !(await fs.readdir(dir)).includes(LOCK_FILE))
 }
 
 // ── 3) 同进程并发写：全部保留 ─────────────────────────────────────────────
