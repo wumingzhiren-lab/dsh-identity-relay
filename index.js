@@ -464,6 +464,7 @@ export function apply(ctx, config = {}) {
         related: { type: 'array', items: { type: 'string' }, description: '可选：关联到已有记忆。每项填记忆 id 或一段内容片段（会解析成最近命中的那条 active 记忆），最多 5 个。之后 relay_recall 命中这条时会顺手带出关联记忆。' },
         validFrom: { type: 'string', description: '可选：这条事实从什么时候开始成立（ISO 日期，如 2026-09-01）。不填 = 起点不清楚。' },
         validTo: { type: 'string', description: '可选：这条事实到什么时候不再成立（ISO 日期，如 2027-07-01）。到点后不占注入名额，单独列在「已过期」；不填 = 长期有效。' },
+        importance: { type: 'integer', minimum: 0, maximum: 10, description: '可选：0–10 的重要度（这事有多戳人：1=日常流水，10=身份/承诺/红线/让主人动情的事）。你自己判断后填；不填就按来源和关键词自动估。它会影响读档时哪条先被挑进上下文。' },
       },
       required: ['content'],
     },
@@ -472,7 +473,7 @@ export function apply(ctx, config = {}) {
     execute: async (args) => queueWrite(async () => {
       let r
       try {
-        r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related, validFrom: args?.validFrom, validTo: args?.validTo })
+        r = await appendFact(memoryDir, args?.content, { maxFacts, source: args?.source, subject: args?.subject, related: args?.related, validFrom: args?.validFrom, validTo: args?.validTo, importance: args?.importance })
       } catch (e) {
         // 目录不存在/不可写时会抛原始 Node 错误，新手看不懂（UX 审计 2026-11-03）
         return friendlyStoreError(e, memoryDir)
