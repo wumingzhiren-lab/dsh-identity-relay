@@ -45,7 +45,7 @@ import {
   PERSONA_TEMPLATE,
   HANDOVER_TEMPLATE,
 } from './lib/store.mjs'
-import { shouldNudgeCapacity, shouldNudgeArchive, detectChanges, planStepNudges, renderNudge, renderFactLine, flattenLine } from './lib/nudges.mjs'
+import { shouldNudgeCapacity, shouldNudgeArchive, detectChanges, planStepNudges, renderNudge, renderFactLine, flattenLine, shouldPullFresh, nextBaseline, changedFiles } from './lib/nudges.mjs'
 import { isStale } from './lib/trust.mjs'
 
 export const name = 'dsh-identity-relay'
@@ -655,26 +655,15 @@ export function apply(ctx, config = {}) {
       if (Date.now() - stampsCheckedAt >= 2000) {
         stampsCheckedAt = Date.now()
         const stamps = await storeStamps(memoryDir)
-        if (knownStamps === null) {
-          // 基线还没建好（ensureStore 的异步链没跑完）：推平的同时**也要把没注入过的捞出来**，
-          // 否则这段时间别处写进来的记忆会被当成"已知"，永远不送（2026-11-03 真机发现）
-          knownStamps = stamps
+        // 三件事都交给纯函数判断（有 step10 测试兜着）：
+        // 要不要捞新记忆 / 哪些档案变了 / 基线怎么更新
+        const pullFresh = shouldPullFresh({ knownStamps, nextStamps: stamps })
+        changed = changedFiles({ knownStamps, nextStamps: stamps })
+        knownStamps = nextBaseline({ knownStamps, nextStamps: stamps })
+        if (pullFresh) {
           try {
-            const pending = await readFactsSince(memoryDir, injectedIds, { limit: 3 })
-            if (pending.length > 0) fresh = pending
+            fresh = await readFactsSince(memoryDir, injectedIds, { limit: 3 })
           } catch (e) { warn('增量注入失败:', String(e?.message ?? e)) }
-        } else {
-          const diff = detectChanges(knownStamps, stamps)
-          if (diff.changed.length > 0) {
-            knownStamps = stamps
-            changed = diff.changed
-            // facts 变了：把没注入过的新记忆取出来（真正送不送由 planStepNudges 决定）
-            if (diff.factsChanged) {
-              try {
-                fresh = await readFactsSince(memoryDir, injectedIds, { limit: 3 })
-              } catch (e) { warn('增量注入失败:', String(e?.message ?? e)) }
-            }
-          }
         }
       }
     } catch (e) { warn('档案检测失败:', String(e?.message ?? e)) }

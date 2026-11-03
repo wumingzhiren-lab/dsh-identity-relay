@@ -128,7 +128,7 @@ node test/step6.mjs      # 13 项：读档注入保底名额（主人原话不�
 node test/step7.mjs      # 25 项：记忆矛盾检测（否定差异 / 极性概念组 / 过期与未生效不参与）
 node test/step8.mjs      # 36 项：记忆有效期（validFrom/validTo 一起判、同键补结束时间、新值过期拒绝、只写日期按本地、非日期拒绝）
 node test/step9.mjs      # 44 项：注入安全（换行压平、伪造边界清洗、凭据补全、锁自愈）+ 增量注入
-node test/step10.mjs     # 35 项：pre-step 接线（指纹对比 / 行渲染 / 提示文本 / 全链路不丢）
+node test/step10.mjs     # 45 项：pre-step 接线（指纹对比 / 基线更新 / 行渲染 / 提示文本 / 全链路不丢）
 node test/step11.mjs     # 26 项：来源动态信任（按人工判错率降权，上限一半）+ 年龄标记 + 时区排序
 node test/benchmark.mjs  # 49 项：基准场景集 v1（A 同键 / B 作废与翻案 / C 来源 / D 凭据 / E 边界与并发）
 node test/fuzz.mjs 200   # 随机压力：随机操作序列 + 极端输入，只测不变量（每轮 300+ 断言）

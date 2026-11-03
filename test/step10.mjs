@@ -2,7 +2,7 @@
 // 这一套存在的理由：2026-11-03 真机发现「档案更新提示把增量注入吞了」，
 // 而且它早就在吞容量预警。纯函数化 + 这条测试就是防它再犯。
 // 运行：node test/step10.mjs（从插件根目录）
-import { shouldNudgeCapacity, shouldNudgeArchive, planStepNudges, detectChanges, renderFactLine, renderNudge } from '../lib/nudges.mjs'
+import { shouldNudgeCapacity, shouldNudgeArchive, planStepNudges, detectChanges, renderFactLine, renderNudge, shouldPullFresh, nextBaseline, changedFiles } from '../lib/nudges.mjs'
 
 let pass = 0, fail = 0
 const ok = (name, cond) => { if (cond) { pass++; console.log('PASS', name) } else { fail++; console.log('FAIL', name) } }
@@ -90,6 +90,20 @@ const plan3 = planStepNudges({
 const texts = plan3.map(renderNudge)
 ok('全链路三条都有内容', texts.length === 3 && texts.every((t) => typeof t === 'string' && t.length > 10))
 ok('全链路三条各不相同', new Set(texts).size === 3)
+
+// ── 基线逻辑：null 基线不能吞掉新记忆（2026-11-03 真机 bug）──
+const B = { persona: 1, handover: 1, facts: 1 }
+ok('基线为 null → 必须去捞新记忆', shouldPullFresh({ knownStamps: null, nextStamps: { facts: 9 } }) === true)
+ok('基线为 null → changed 为空（不算"别人写的"）', changedFiles({ knownStamps: null, nextStamps: { facts: 9 } }).length === 0)
+ok('基线为 null → 接手新指纹', JSON.stringify(nextBaseline({ knownStamps: null, nextStamps: { facts: 9 } })) === JSON.stringify({ facts: 9 }))
+
+ok('facts 变了 → 要捞', shouldPullFresh({ knownStamps: B, nextStamps: { ...B, facts: 2 } }) === true)
+ok('只有 persona 变 → 不捞记忆', shouldPullFresh({ knownStamps: B, nextStamps: { ...B, persona: 2 } }) === false)
+ok('什么都没变 → 不捞', shouldPullFresh({ knownStamps: B, nextStamps: { ...B } }) === false)
+ok('变了 → 基线更新', JSON.stringify(nextBaseline({ knownStamps: B, nextStamps: { ...B, facts: 2 } })) === JSON.stringify({ ...B, facts: 2 }))
+ok('没变 → 基线不动', JSON.stringify(nextBaseline({ knownStamps: B, nextStamps: { ...B } })) === JSON.stringify(B))
+ok('changedFiles 报出变化的键', JSON.stringify(changedFiles({ knownStamps: B, nextStamps: { ...B, facts: 2 } })) === JSON.stringify(['facts']))
+ok('persona+facts 同时变都报出', JSON.stringify(changedFiles({ knownStamps: B, nextStamps: { ...B, facts: 2, persona: 2 } }).sort()) === JSON.stringify(['facts', 'persona']))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
