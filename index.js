@@ -98,11 +98,12 @@ const DEFAULTS = {
   maxHandoverChars: 4000,
   /**
    * 读档挑哪些记忆（0.5）：
-   *  - 'recent'    = 最近 N 条 + 保底名额（v0.4 行为，默认）
    *  - 'relevance' = 用交接书当话题，按「相关 × 新鲜 × 来源」挑 N 条（挑不出话题时自动退回 recent）
-   * 默认先留在 'recent'：换了行为要主人点头，并且在真库上比对过再翻。
+   *  - 'recent'    = 最近 N 条 + 保底名额（v0.4 行为）
+   * 0.5 起默认 'relevance'：真库比对同样 20 个名额，owner+self 从 15 涨到 19，
+   * 并少进 5 条流水。想退回旧行为把 injectSelect 设成 'recent' 即可（一个配置项，不用改代码）。
    */
-  injectSelect: 'recent',
+  injectSelect: 'relevance',
 }
 
 function resolveMemoryDir(config) {

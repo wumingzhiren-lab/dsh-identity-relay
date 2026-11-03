@@ -104,7 +104,7 @@ dsh plugin add <本目录绝对路径>
 | `pinMax` | `0` | 保底名额上限；`0` = 自动取 `ceil(recallLimit/3)`（20 条时是 7 个） |
 | `maxInjectChars` | `6000` | 注入的人格卡最大字符数（超出会截断并提示用 `relay_load` 看全文） |
 | `maxHandoverChars` | `4000` | 注入的交接书最大字符数 |
-| `injectSelect` | `"recent"` | 读档挑哪些记忆。`"recent"` = 最近 N 条 + 保底名额（v0.4 行为）；`"relevance"` = 拿交接书当话题，按「相关 × 新鲜 × 来源」挑 N 条，挑不出话题时自动退回 `recent`。0.5 新增，**默认没开**，在真库上比对过再翻 |
+| `injectSelect` | `"relevance"` | 读档挑哪些记忆。`"relevance"` = 拿交接书当话题，按「相关 × 新鲜 × 来源」挑 N 条（挑不出话题自动退回 `recent`）；`"recent"` = 最近 N 条 + 保底名额（v0.4 旧行为，想退回去设这个值即可）。0.5 起默认 `"relevance"`：真库比对同样 20 个名额，owner+self 覆盖 15/23 → 19/23 |
 
 ## 八个工具（bot 自己会用）
 
