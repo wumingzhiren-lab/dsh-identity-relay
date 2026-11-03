@@ -488,12 +488,19 @@ export function apply(ctx, config = {}) {
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => {
-      const action = args?.action === 'read' ? 'read' : (typeof args?.content === 'string' ? 'write' : 'read')
-      if (action === 'write') return queueWrite(async () => {
-        await writeStoreFile(memoryDir, HANDOVER_FILE, args.content)
-        await syncStamps()
-        return `交接书已写入 ${join(memoryDir, HANDOVER_FILE)}。下一世开工自动读到它，无缝接上。`
-      })
+      const wantsWrite = args?.action === 'write' || typeof args?.content === 'string'
+      const action = wantsWrite ? 'write' : 'read'
+      if (action === 'write') {
+        // 审计 2026-11-03：空内容会把交接书覆盖成 0 字节，还回「已写入」
+        if (!String(args?.content ?? '').trim()) {
+          return '内容为空，没写（避免把交接书清成 0 字节）。要写就把全文放进 content。'
+        }
+        return queueWrite(async () => {
+          await writeStoreFile(memoryDir, HANDOVER_FILE, args.content)
+          await syncStamps()
+          return `交接书已写入 ${join(memoryDir, HANDOVER_FILE)}。下一世开工自动读到它，无缝接上。`
+        })
+      }
       const text = await readTextSafe(join(memoryDir, HANDOVER_FILE))
       return text ? `── 交接书 handover.md ──\n${text}` : '交接书为空。用 relay_handover action "write" 写一份。'
     },
@@ -512,12 +519,19 @@ export function apply(ctx, config = {}) {
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => true,
     execute: async (args) => {
-      const action = args?.action === 'read' ? 'read' : (typeof args?.content === 'string' ? 'update' : 'read')
-      if (action === 'update') return queueWrite(async () => {
-        await writeStoreFile(memoryDir, PERSONA_FILE, args.content)
-        await syncStamps()
-        return `人格卡已更新：${join(memoryDir, PERSONA_FILE)}\n提醒：只保留/强化核心身份，别把「她」写成别人。`
-      })
+      const wantsWrite = args?.action === 'update' || args?.action === 'write' || typeof args?.content === 'string'
+      const action = wantsWrite ? 'update' : 'read'
+      if (action === 'update') {
+        // 审计 2026-11-03：空内容会把人格卡覆盖成 0 字节，还回「已更新」
+        if (!String(args?.content ?? '').trim()) {
+          return '内容为空，没写（避免把人格卡清成 0 字节）。要更新就把全文放进 content。'
+        }
+        return queueWrite(async () => {
+          await writeStoreFile(memoryDir, PERSONA_FILE, args.content)
+          await syncStamps()
+          return `人格卡已更新：${join(memoryDir, PERSONA_FILE)}\n提醒：只保留/强化核心身份，别把「她」写成别人。`
+        })
+      }
       const text = await readTextSafe(join(memoryDir, PERSONA_FILE))
       return text ? `── 人格卡 persona.md ──\n${text}` : '人格卡为空。用 relay_persona action "update" 写入，或直接编辑 persona.md。'
     },

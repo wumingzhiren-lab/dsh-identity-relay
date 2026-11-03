@@ -78,5 +78,15 @@ ok('同键替换给旧条补了 validTo', !!oldProj && !!oldProj.validTo)
 ok('旧条被盖章为 superseded', oldProj && oldProj.status === 'superseded')
 ok('旧条的 validTo 等于新条写入时刻', oldProj && !isNaN(Date.parse(oldProj.validTo)))
 
+// ── 同键新值自己不在生效期 → 必须拒绝（审计 2026-11-03：否则旧值被盖、该键 0 条有效）──
+await appendFact(DIR, '部署状态：待发布', { source: 'tool', subject: 'deploy' })
+const badNew = await appendFact(DIR, '部署状态：已发布', { source: 'tool', subject: 'deploy', validTo: '2020-01-01' })
+ok('同键新值已过期 → 拒绝写入', badNew.appended === false && typeof badNew.error === 'string')
+const deployActive = (await parseFacts(DIR)).filter((f) => f.subject === 'deploy' && f.status === 'active')
+ok('拒绝后旧值还在（该键没断）', deployActive.length === 1 && deployActive[0].content === '部署状态：待发布')
+
+const futureNew = await appendFact(DIR, '部署状态：明年才生效', { source: 'tool', subject: 'deploy', validFrom: '2099-01-01' })
+ok('同键新值还没生效 → 也拒绝', futureNew.appended === false && typeof futureNew.error === 'string')
+
 console.log(`\n${pass} passed, ${fail} failed`)
 if (fail > 0) process.exit(1)
